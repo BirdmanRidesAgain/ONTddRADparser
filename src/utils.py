@@ -44,10 +44,11 @@ def parse_barcodes(barcodefile):
     with open(barcodefile, "r", encoding="utf-8") as f:
         for i, line in enumerate(f, 1):
             parts = line.rstrip("\n").split("\t")
+            print(parts)
             if (len(parts) != 2 ):
                 raise ValueError(f"Malformed line {i}: {line.strip()}")
             valid_DNA_nucelotides={'A','T','C','G'}
-            if (len(parts[0]) != 6  | (not set(parts[0]).issubset(valid_DNA_nucelotides))):
+            if (len(parts[1]) != 6  or (not set(parts[1]).issubset(valid_DNA_nucelotides))):
                     raise ValueError(f"Malformed barcode {i}: {line.strip()}")
             key, value = parts
             result[key] = value
@@ -78,3 +79,6 @@ def make_outdir(prefix):
     outdir=f"{prefix}_{timestamp}"
     os.makedirs(outdir, exist_ok=True)
     return(outdir)
+
+def add(int1,int2):
+    return(int1+int2)
