@@ -9,6 +9,11 @@ Currently being developed for [Oikos](https://oikosgenomics.org)'s genomics low-
 
 ## Algorithm
 
-1. Parse in 
+1. Parse inputs
+
+Requires a demux file and a fasta file.
+
+### Demux file
+Demux file is specified as a `tsv`, and consists of 5 columns without a header.
 
 ## Todo
