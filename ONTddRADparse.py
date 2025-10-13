@@ -27,14 +27,17 @@ def main():
     fq_column_lst=['seq_name', 'full_index_loc_f','full_index_loc_r']
     fq_info_df=initialize_data_frame(len(fq_lst), fq_column_lst)
 
-
-    # remove all reads where an index cannot be found
+    # Get alignments for all combinations of reads and indices
     unique_full_indices=demux_df['index_full'].unique()
     full_idx_alignments_lst=get_full_index_alignments(fq_lst, unique_full_indices)
-    print(full_idx_alignments_lst[0][3].score)
-    print(full_idx_alignments_lst[0][3][0].aligned)
-    #alignment[0].aligned
+    print(full_idx_alignments_lst[0])
     exit(0)
+    # filter out reads where a well-aligned full index cannot be found
+    # also filter where two of them are found
+    #percent_idx_aln_score_for_confident_assignment=.95
+    #print(full_idx_alignments_lst[0][3].score)
+    #print(full_idx_alignments_lst[0][3][0].aligned)
+
 
 
 

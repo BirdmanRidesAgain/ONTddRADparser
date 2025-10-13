@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_data_frame","get_full_index_alignments"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_data_frame","get_full_index_alignments","filter_alignment_by_score"]
 
 import gzip
 from Bio import Seq
@@ -16,17 +16,20 @@ import pandas as pd
 
 enzyme_lst=list(Restriction.__dict__)
 
-def filter_alignments(align_lst, match_percent):
+def filter_alignment_by_score(aln, max_aln_score, match_percent):
     '''
-    Filters alignments according to score.
+    Takes an alignment, a max score and a minimum percent of that max score needed to pass.
+    Returns a list - either the alignment indices or the invalid indices [-1,-1].
     '''
-#    match_percent=.95
-#    # The max score for an alignment with no gaps or mismatches is len(idx)
-#    # We remove any alignments that are >5% error
-#    min_score=len(idx)*match_percent
-#    if (align.score < min_score):
-#        print(type(alignment[0].aligned))
-    return(0)
+    min_aln_score=max_aln_score*match_percent
+    if (aln.score < min_aln_score):
+        return([-1,-1])
+    else:
+        # the alignment list is always 2 elements long.
+        # the first element contains the indices corresponding to the sequence, which we want
+        # taking the min and max gets us the boundary of where the index aligned plus whatever gaps were opened
+        seq_aln_boundaries=aln[0].aligned[0].flatten()
+        return(min(seq_aln_boundaries), max(seq_aln_boundaries)) # first element of the alignment
 
 def align_target(seq, idx, orientation):
     '''
@@ -54,19 +57,29 @@ def get_full_index_alignments(seq_lst, idx_lst):
     '''
     Takes a list of full indexes and sequences, aligns them and returns a list of the alignments.
     Function searches both the forward and reverse complement, resulting in an output list structured like: 
-        [seq1,idx,orientation,(Alignment object)]
-        [seq2,idx,orientation,(Alignment object)]
-        [seq3,idx,orientation,(Alignment object)]
+        [seq1,idx,orientation,(subseq_start, subseq_end)]
+        [seq2,idx,orientation,(subseq_start, subseq_end)]
+        [seq3,idx,orientation,(subseq_start, subseq_end)]
     '''
+    # for every sequence/index combination, align and find the indices of all high-qual alignments
+    percent_max_aln_score_for_confident_assignment=.95
 
-    # for every sequence/index combination, 
     idx_loc=[]
     for i in seq_lst:
         for j in idx_lst:
+            max_aln_score=len(j)
             for k in ['f','r']:
                 alignment=align_target(i, j, k)
-                idx_loc.append([i,j,k, alignment])
+                idx_boundary_lst=[]
+                idx_boundary_lst=filter_alignment_by_score(alignment, max_aln_score, percent_max_aln_score_for_confident_assignment)
+                idx_loc.append([i,j,k,idx_boundary_lst])
+
     return(idx_loc)
+
+
+
+
+
 
 def print_args(args):
     print("User-defined arguments:")
