@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_data_frame","get_full_index_alignments","filter_alignment_by_score"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_data_frame","get_fuzzy_alignments","filter_alignment_by_score"]
 
 import gzip
 from Bio import Seq
@@ -53,7 +53,7 @@ def align_target(seq, idx, orientation):
         raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
     return(alignment)
 
-def get_full_index_alignments(seq_lst, idx_lst):
+def get_fuzzy_alignments(seq_lst, subseq_lst, percent_match):
     '''
     Takes a list of full indexes and sequences, aligns them and returns a list of the alignments.
     Function searches both the forward and reverse complement, resulting in an output list structured like: 
@@ -62,19 +62,17 @@ def get_full_index_alignments(seq_lst, idx_lst):
         [seq3,idx,orientation,(subseq_start, subseq_end)]
     '''
     # for every sequence/index combination, align and find the indices of all high-qual alignments
-    percent_max_aln_score_for_confident_assignment=.95
 
-    idx_loc=[]
+    subseq_loc=[]
     for i in seq_lst:
-        for j in idx_lst:
+        for j in subseq_lst:
             max_aln_score=len(j)
             for k in ['f','r']:
                 alignment=align_target(i, j, k)
-                idx_boundary_lst=[]
-                idx_boundary_lst=filter_alignment_by_score(alignment, max_aln_score, percent_max_aln_score_for_confident_assignment)
-                idx_loc.append([i,j,k,idx_boundary_lst])
-
-    return(idx_loc)
+                subseq_boundary_lst=[]
+                subseq_boundary_lst=filter_alignment_by_score(alignment, max_aln_score, percent_match)
+                subseq_loc.append([i.name,j.__str__,k, subseq_boundary_lst])
+    return(subseq_loc)
 
 
 
