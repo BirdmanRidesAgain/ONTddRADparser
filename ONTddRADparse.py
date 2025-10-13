@@ -3,7 +3,6 @@
 
 from argparse import ArgumentParser
 import os
-#import pandas as pd
 from src.utils import *
 
 def main():
@@ -16,26 +15,32 @@ def main():
     args = parser.parse_args()
     print_args(args)
 
-    if not (args.enzyme1 in enzyme_list and args.enzyme2 in enzyme_list and args.enzyme1!=args.enzyme2):
-        raise ValueError(f"Invalid enzymes. Valid options are: \n{enzyme_list}")
+    if not (args.enzyme1 in enzyme_lst and args.enzyme2 in enzyme_lst and args.enzyme1!=args.enzyme2):
+        raise ValueError(f"Invalid enzymes. Valid options are: \n{enzyme_lst}")
 
     # Parse in files
-    fq_list = parse_seqfile(args.fastq, 'fastq')
-    barcode_dict=parse_barcodes(args.demux)
-    print(barcode_dict)
+    fq_lst = parse_seqfile(args.fastq, 'fastq')
+    demux_df = parse_ONT_demux_file(args.demux)
 
-    ## Now, we demultiplex all reads by barcode
-    print(barcode_dict.keys())
-    #for i in fq_list:
-    #    print(len(i.seq))
-    #    #print(i.seq)
 
+    # initialize a data frame to store information about sequences to be removed/kept
+    fq_column_lst=['seq_name', 'full_index_loc_f','full_index_loc_r']
+    fq_info_df=initialize_data_frame(len(fq_lst), fq_column_lst)
+
+
+    # remove all reads where an index cannot be found
+    unique_full_indices=demux_df['index_full'].unique()
+    fq_info_df['full_index_loc_f']=get_full_index_boundaries(fq_lst, unique_full_indices)
+    print(fq_info_df['full_index_loc_f'][2][2])
+
+    ## OUTPUT FILES TO DIRECTORY
     outdir=make_outdir(args.prefix)
+
 
     # Build output directory
     filename="newname.fq.gz"
     fq_path=f"{outdir}/{filename}"
-    write_seqfile(fq_path, fq_list, 'fastq')
+    write_seqfile(fq_path, fq_lst, 'fastq')
 
 
 # If this is being imported
