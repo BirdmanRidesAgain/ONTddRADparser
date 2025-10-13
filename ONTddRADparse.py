@@ -30,8 +30,8 @@ def main():
 
     # remove all reads where an index cannot be found
     unique_full_indices=demux_df['index_full'].unique()
-    fq_info_df['full_index_loc_f']=get_full_index_boundaries(fq_lst, unique_full_indices)
-    print(fq_info_df['full_index_loc_f'][2][2])
+    item=get_full_index_boundaries(fq_lst, unique_full_indices)
+    print(item)
 
     ## OUTPUT FILES TO DIRECTORY
     outdir=make_outdir(args.prefix)

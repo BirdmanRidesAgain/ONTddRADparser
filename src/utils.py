@@ -4,6 +4,7 @@ import gzip
 from Bio import Seq
 from Bio import SeqIO
 from Bio import Restriction
+from Bio import Align
 import numpy as np
 from mimetypes import guess_type
 from functools import partial
@@ -14,6 +15,29 @@ import os
 import pandas as pd
 
 enzyme_lst=list(Restriction.__dict__)
+
+def align_target(seq, idx, orientation):
+    '''
+    Helper function for `check_seq_for_full_index` and others.
+    Takes a Bio.Record object and a Bio.Seq object, and aligns them.
+    Returns a tuple of the start and end indices of 'idx' to 'seq'.
+    '''
+    aligner=Align.PairwiseAligner()
+
+    # The max score for an alignment with no gaps or mismatches is len(idx)
+    # We remove any alignments that are >5% error
+    min_score=len(idx)*.95
+
+    if (orientation=='f'):
+        alignment=aligner.align(seq, idx)
+    elif (orientation=='r'):
+        alignment=aligner.align(seq.reverse_complement(),idx)
+    else:
+        raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
+
+    if (alignment.score < min_score):
+        return(f"no valid index found for {seq.name} {orientation}")
+    return(alignment[0].aligned)
 
 def get_full_index_boundaries(seq_lst, idx_lst, n_mismatch=0):
     '''
@@ -29,22 +53,6 @@ def get_full_index_boundaries(seq_lst, idx_lst, n_mismatch=0):
         for j in idx_lst:
             idx_loc.append([i, j, align_target(i, j, 'f'), align_target(i, j, 'r')])
     return(idx_loc)
-
-def align_target(seq, idx, orientation):
-    '''
-    Helper function for `check_seq_for_full_index` and others.
-    Takes a Bio.Record object and a Bio.Seq object, and aligns them.
-    Returns a tuple of the start and end indices of 'idx' to 'seq'.
-    '''
-        #    # we get the start of the full idx with 'find', and then add the length for the last
-        #    f_start_boundary=j.seq.find(i)
-        #    r_start_boundary=j.seq.reverse_complement().find(i)
-        #    idx_boundaries_f=[j.seq.find(i),j.seq.find(i)+index_len]
-        #    idx_in_seq_indices=[j.seq.find(i),j.seq.reverse_complement().find(i)]
-        #    #for j in idx_in_seq_indices:
-        #    #    f_start_idx,r_start_idx=j.seq.find(i),j.seq.reverse_complement().find(i)
-    return(-1,-1)
-
 
 def print_args(args):
     print("User-defined arguments:")
@@ -66,7 +74,7 @@ def parse_seqfile(seqfile, format):
 
 def parse_ONT_demux_file(filepath):
     '''
-    Reads a 6-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
+    Reads a 5-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
     
     A minimal example looks like this:
     individual	index_full	index	barcode_full	barcode
