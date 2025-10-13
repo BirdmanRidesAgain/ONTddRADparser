@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_data_frame","get_fuzzy_alignments","filter_alignment_by_score"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_fuzzy_alns","filter_aln_by_score","filter_seq_by_subseq_validity"]
 
 import gzip
 from Bio import Seq
@@ -16,7 +16,69 @@ import pandas as pd
 
 enzyme_lst=list(Restriction.__dict__)
 
-def filter_alignment_by_score(aln, max_aln_score, match_percent):
+def filter_seq_by_subseq_validity(seq, f_idx, r_idx):
+    '''
+    Takes a Seq object and two barcode indices (f and r), and returns a bool.
+    Removes invalid sequences from an input list of sequences.
+    We make the following assumptions:
+        - An index with the value of [-1,-1] could not be found in the sequence
+        - A seq with no indices is invalid
+
+    This check is only designed to catch sequences where NO barcode is recovered.
+    A seq with <=1 valid index may not be valid, but will pass this check.
+    This is possible under the following scenarios:
+        - Seq is a concatamer, and will be checked/recovered later
+        - Seq could lack other diagnostic features (full_index, index, full_barcode, barcode)
+
+    `f_idx` and `r_idx` should look like this:
+    ['f',[int,int]],['r',[int,int]]
+    '''
+    return True
+
+def filter_seqs_by_subseq_validity(seq_lst, subseq_lst, percent_match):
+    '''
+    Takes a list of SeqRecord ('seq_lst') objects, a list of Seqs ('subseq_lst'), and a float 'percent_match'
+        - Subseqs in this context are assumed to be from demux file
+        - Eg, subseqs are: 'full_idx', 'idx', 'full_barcode', 'barcode'
+    Function first aligns each combination of seq and subseq forward (f) and in reverse (r).
+    It then filters the f and r alignments, marking it as invalid/not found if the score is below 'percent_match' of the max possible alignment score.
+        - max_aln_score = len(seq)
+        - min_score = max_aln_score*percent_match
+
+    It then checks that each SeqRecord has at least 1 valid Seq in it.
+    SeqRecords without a Seq are removed from the input list.
+        - NOTE: This function does not guard against concatamers or violations involving multiple Seq objects.
+        - These are checked later.
+
+    Finally, all valid SeqRecords are returned as a list.
+    '''
+    valid_seqs=[]
+    for i in seq_lst:
+        for j in subseq_lst:
+            # CHECK TO SEE
+            valid_seqs.append(get_fuzzy_alns(i, j, percent_match))
+    return(0)
+
+
+def get_fuzzy_alns(seq, subseq, percent_match):
+    '''
+    Takes a seq and a subseq, aligns them and returns a list of the alignments.
+    Function searches both the forward and reverse complement, resulting in an output list structured like: 
+        [seq_name,idx,[f,(aln_start, aln_end)],[r,(aln_start, aln_end)]]
+    '''
+    # for every sequence/index combination, align and find the indices of all high-qual alignments
+    max_aln_score=len(subseq)
+    aln_f=align_target(seq, subseq, 'f')
+    aln_r=align_target(seq, subseq, 'r')
+
+    subseq_boundary_lst_f=filter_aln_by_score(aln_f, max_aln_score, percent_match)
+    subseq_boundary_lst_r=filter_aln_by_score(aln_r, max_aln_score, percent_match)
+
+    subseq_loc = ([seq.name, subseq.__str__(),['f',subseq_boundary_lst_f],['r',subseq_boundary_lst_r]])
+    return(subseq_loc)
+
+
+def filter_aln_by_score(aln, max_aln_score, match_percent):
     '''
     Takes an alignment, a max score and a minimum percent of that max score needed to pass.
     Returns a list - either the alignment indices or the invalid indices [-1,-1].
@@ -52,27 +114,6 @@ def align_target(seq, idx, orientation):
     else:
         raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
     return(alignment)
-
-def get_fuzzy_alignments(seq_lst, subseq_lst, percent_match):
-    '''
-    Takes a list of full indexes and sequences, aligns them and returns a list of the alignments.
-    Function searches both the forward and reverse complement, resulting in an output list structured like: 
-        [seq1,idx,orientation,(subseq_start, subseq_end)]
-        [seq2,idx,orientation,(subseq_start, subseq_end)]
-        [seq3,idx,orientation,(subseq_start, subseq_end)]
-    '''
-    # for every sequence/index combination, align and find the indices of all high-qual alignments
-
-    subseq_loc=[]
-    for i in seq_lst:
-        for j in subseq_lst:
-            max_aln_score=len(j)
-            for k in ['f','r']:
-                alignment=align_target(i, j, k)
-                subseq_boundary_lst=[]
-                subseq_boundary_lst=filter_alignment_by_score(alignment, max_aln_score, percent_match)
-                subseq_loc.append([i.name,j.__str__,k, subseq_boundary_lst])
-    return(subseq_loc)
 
 
 
@@ -143,7 +184,7 @@ def write_seqfile(filename, seqs, format):
             p.stdin.close()
         p.wait()
 
-def initialize_data_frame(num_rows, column_lst):
+def initialize_df(num_rows, column_lst):
     '''
     Allocates space for a data frame.
     Values are given the placeholder value of 'np.NaN' (float) by default.
@@ -151,10 +192,6 @@ def initialize_data_frame(num_rows, column_lst):
     '''
     df = pd.DataFrame(np.nan, index=np.arange(num_rows), columns=column_lst)
     return(df)
-
-
-
-
 
 
 def make_outdir(prefix):
