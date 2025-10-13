@@ -13,7 +13,7 @@ def main():
     parser.add_argument('-e1','--enzyme1', help='The restriction enzyme associated with the index. Valid choices come from BioPython.Restriction', type=str)
     parser.add_argument('-e2','--enzyme2', help='The restriction enzyme associated with the barcode. Valid choices come from BioPython.Restriction', type=str)
     args = parser.parse_args()
-    print_args(args)
+    #print_args(args)
 
     if not (args.enzyme1 in enzyme_lst and args.enzyme2 in enzyme_lst and args.enzyme1!=args.enzyme2):
         raise ValueError(f"Invalid enzymes. Valid options are: \n{enzyme_lst}")
@@ -30,8 +30,13 @@ def main():
 
     # remove all reads where an index cannot be found
     unique_full_indices=demux_df['index_full'].unique()
-    item=get_full_index_boundaries(fq_lst, unique_full_indices)
-    print(item)
+    full_idx_alignments_lst=get_full_index_alignments(fq_lst, unique_full_indices)
+    print(full_idx_alignments_lst[0][3].score)
+    print(full_idx_alignments_lst[0][3][0].aligned)
+    #alignment[0].aligned
+    exit(0)
+
+
 
     ## OUTPUT FILES TO DIRECTORY
     outdir=make_outdir(args.prefix)

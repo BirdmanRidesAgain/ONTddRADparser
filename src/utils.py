@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_data_frame","get_full_index_boundaries"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_data_frame","get_full_index_alignments"]
 
 import gzip
 from Bio import Seq
@@ -16,17 +16,31 @@ import pandas as pd
 
 enzyme_lst=list(Restriction.__dict__)
 
+def filter_alignments(align_lst, match_percent):
+    '''
+    Filters alignments according to score.
+    '''
+#    match_percent=.95
+#    # The max score for an alignment with no gaps or mismatches is len(idx)
+#    # We remove any alignments that are >5% error
+#    min_score=len(idx)*match_percent
+#    if (align.score < min_score):
+#        print(type(alignment[0].aligned))
+    return(0)
+
 def align_target(seq, idx, orientation):
     '''
     Helper function for `check_seq_for_full_index` and others.
     Takes a Bio.Record object and a Bio.Seq object, and aligns them.
     Returns a tuple of the start and end indices of 'idx' to 'seq'.
     '''
+    # We penalize opening gaps because our markers should theoretically be one group
     aligner=Align.PairwiseAligner()
-
-    # The max score for an alignment with no gaps or mismatches is len(idx)
-    # We remove any alignments that are >5% error
-    min_score=len(idx)*.95
+    aligner.mode = 'local'
+    aligner.open_gap_score = -0.5
+    aligner.extend_gap_score = -0.1
+    aligner.target_end_gap_score = 0.0
+    aligner.query_end_gap_score = 0.0
 
     if (orientation=='f'):
         alignment=aligner.align(seq, idx)
@@ -34,24 +48,24 @@ def align_target(seq, idx, orientation):
         alignment=aligner.align(seq.reverse_complement(),idx)
     else:
         raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
+    return(alignment)
 
-    if (alignment.score < min_score):
-        return(f"no valid index found for {seq.name} {orientation}")
-    return(alignment[0].aligned)
-
-def get_full_index_boundaries(seq_lst, idx_lst, n_mismatch=0):
+def get_full_index_alignments(seq_lst, idx_lst):
     '''
-    Takes a list of full indexes and sequences, aligns them and returns a list containing their start/end indices.
+    Takes a list of full indexes and sequences, aligns them and returns a list of the alignments.
     Function searches both the forward and reverse complement, resulting in an output list structured like: 
-        [seq_1,idx,(f_start,f_end),(r_start,r_end)]
-        [seq_2,idx,(f_start,f_end),(r_start,r_end)]
-        [seq_3,idx,(f_start,f_end),(r_start,r_end)]
-    If not found, it returns a -1 for both slots.
+        [seq1,idx,orientation,(Alignment object)]
+        [seq2,idx,orientation,(Alignment object)]
+        [seq3,idx,orientation,(Alignment object)]
     '''
+
+    # for every sequence/index combination, 
     idx_loc=[]
     for i in seq_lst:
         for j in idx_lst:
-            idx_loc.append([i, j, align_target(i, j, 'f'), align_target(i, j, 'r')])
+            for k in ['f','r']:
+                alignment=align_target(i, j, k)
+                idx_loc.append([i,j,k, alignment])
     return(idx_loc)
 
 def print_args(args):
