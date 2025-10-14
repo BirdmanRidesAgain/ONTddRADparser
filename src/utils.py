@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_fuzzy_alns","filter_aln_by_score","filter_seq_by_subseq_validity"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_fuzzy_alns","filter_aln_by_score","filter_seq_by_subseq_validity","filter_seqs_by_subseq_validity"]
 
 import gzip
 from Bio import Seq
@@ -15,25 +15,6 @@ import os
 import pandas as pd
 
 enzyme_lst=list(Restriction.__dict__)
-
-def filter_seq_by_subseq_validity(seq, f_idx, r_idx):
-    '''
-    Takes a Seq object and two barcode indices (f and r), and returns a bool.
-    Removes invalid sequences from an input list of sequences.
-    We make the following assumptions:
-        - An index with the value of [-1,-1] could not be found in the sequence
-        - A seq with no indices is invalid
-
-    This check is only designed to catch sequences where NO barcode is recovered.
-    A seq with <=1 valid index may not be valid, but will pass this check.
-    This is possible under the following scenarios:
-        - Seq is a concatamer, and will be checked/recovered later
-        - Seq could lack other diagnostic features (full_index, index, full_barcode, barcode)
-
-    `f_idx` and `r_idx` should look like this:
-    ['f',[int,int]],['r',[int,int]]
-    '''
-    return True
 
 def filter_seqs_by_subseq_validity(seq_lst, subseq_lst, percent_match):
     '''
@@ -52,12 +33,47 @@ def filter_seqs_by_subseq_validity(seq_lst, subseq_lst, percent_match):
 
     Finally, all valid SeqRecords are returned as a list.
     '''
-    valid_seqs=[]
+    print(f"Input seqs\t{len(seq_lst)}")
+    valid_seq_lst=[]
+    dup_lst=[]
     for i in seq_lst:
         for j in subseq_lst:
-            # CHECK TO SEE
-            valid_seqs.append(get_fuzzy_alns(i, j, percent_match))
-    return(0)
+            if (i.name in dup_lst):
+                continue
+            else:
+                subseq_boundaries=get_fuzzy_alns(i, j, percent_match)
+                if (filter_seq_by_subseq_validity(i, subseq_boundaries[2], subseq_boundaries[3])):
+                    valid_seq_lst.append(i)
+                    dup_lst.append(i.name)
+    print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
+
+    # FIXME - the algorithm above will create duplicates in valid_seq_lst when fed subseqs with high similarity
+    # We will remove duplicates from the list by converting to a dict and then back, because it's easy
+    # but, it's probably better to rework the alg to not have that problem in the first place
+    print(f"nSeqs with non-dup valid substrings \t{len(valid_seq_lst)}")
+
+    return(valid_seq_lst)
+
+def filter_seq_by_subseq_validity(seq, f_idx, r_idx):
+    '''
+    Takes a Seq object and two barcode indices (f and r), and returns a bool.
+    Removes invalid sequences from an input list of sequences.
+    We make the following assumptions:
+        - An index with the value of [-1,-1] could not be found in the sequence
+        - A seq with no indices is invalid
+        - A seq with a 'f' and a 'r' index is invalid
+
+    This check will not catch concatamers.
+    It will also not catch hiccups with other diagnostic features.
+
+    `f_idx` and `r_idx` should look like this:
+    ['f',[int,int]],['r',[int,int]]
+    '''
+    if ((f_idx[1]==[-1,-1]) & (r_idx[1]==[-1,-1])):
+        return False
+    elif ((f_idx[1]!=[-1,-1]) & (r_idx[1]!=[-1,-1])):
+        return False
+    return True
 
 
 def get_fuzzy_alns(seq, subseq, percent_match):
@@ -76,7 +92,6 @@ def get_fuzzy_alns(seq, subseq, percent_match):
 
     subseq_loc = ([seq.name, subseq.__str__(),['f',subseq_boundary_lst_f],['r',subseq_boundary_lst_r]])
     return(subseq_loc)
-
 
 def filter_aln_by_score(aln, max_aln_score, match_percent):
     '''

@@ -29,17 +29,15 @@ def main():
     fq_column_lst=['seq_name', 'full_index_loc_f','full_index_loc_r']
     fq_info_df=initialize_df(len(fq_lst), fq_column_lst)
 
-    # Get alignments for all combinations of reads and full_indices
-    percent_max_aln_score_for_confident_assignment=.95
-    unique_full_indices=demux_df['index_full'].unique()
-    unique_full_barcodes=demux_df['barcode_full'].unique()
 
-    full_idx_alns_lst=get_fuzzy_alns(fq_lst, unique_full_indices, percent_max_aln_score_for_confident_assignment)
-    print(len(full_idx_alns_lst))
-    
-    #full_barcode_alns_lst=get_fuzzy_alns(fq_lst, unique_full_barcodes, percent_max_aln_score_for_confident_assignment)  
-    #print(full_barcode_alns_lst[0])
-    exit(0)
+    # Get alignments for all combinations of reads and full_indices
+    percent_max_aln_score_for_fuzzy_match=.90
+    for col in demux_df[['index_full', 'barcode_full']]:
+        unique_subseq=demux_df[col].unique()
+        fq_lst=filter_seqs_by_subseq_validity(fq_lst, unique_subseq, percent_max_aln_score_for_fuzzy_match)
+    percent_max_aln_score_for_exact_match=1
+    exit(0)   
+
 
 
 
