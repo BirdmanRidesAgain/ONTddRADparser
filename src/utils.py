@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_fuzzy_alns","filter_aln_by_score","filter_seq_by_subseq_validity","filter_seqs_by_subseq_validity"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_aln_boundaries","filter_aln_by_score","check_aln_boundary_validity","filter_seqs_by_subseq_validity"]
 
 import gzip
 from Bio import Seq
@@ -18,68 +18,57 @@ enzyme_lst=list(Restriction.__dict__)
 
 def filter_seqs_by_subseq_validity(seq_lst, subseq_lst, percent_match):
     '''
-    Takes a list of SeqRecord ('seq_lst') objects, a list of Seqs ('subseq_lst'), and a float 'percent_match'
-        - Subseqs in this context are assumed to be from demux file
-        - Eg, subseqs are: 'full_idx', 'idx', 'full_barcode', 'barcode'
-    Function first aligns each combination of seq and subseq forward (f) and in reverse (r).
-    It then filters the f and r alignments, marking it as invalid/not found if the score is below 'percent_match' of the max possible alignment score.
-        - max_aln_score = len(seq)
-        - min_score = max_aln_score*percent_match
+    Takes a list of SeqRecord (`seq_lst`) objects, a list of Seqs (`subseq_lst`), and a float (`percent_match`)
+        - `subseqs` in this context are assumed to be from demux file
+        - Eg, `subseqs` are: 'full_idx', 'idx', 'full_barcode', 'barcode'
+        - 'full_idx' and 'full_barcode' require fuzzy matches; the other two must be exact
 
-    It then checks that each SeqRecord has at least 1 valid Seq in it.
-    SeqRecords without a Seq are removed from the input list.
-        - NOTE: This function does not guard against concatamers or violations involving multiple Seq objects.
-        - These are checked later.
+    Function first aligns each combination of `seq` and `subseq` forward (`f`) and in reverse (`r`).
+    Filters `f` and `r` alignments separately, marking them as invalid/not found if the alignment is low-qual.
+    Four scenarios are possible:
+        1. Valid `subseq` found in `f` and `r`
+        2. Valid `subseq found in `f` only
+        3. Valid `subseq found in `r` only
+        4. No valid `subseq` found
 
+    Scenarios 2,3 are valid; all others are removed.
     Finally, all valid SeqRecords are returned as a list.
     '''
     print(f"Input seqs\t{len(seq_lst)}")
     valid_seq_lst=[]
+    seq_subseq_aln_boundaries_lst=[]
     dup_lst=[]
     for i in seq_lst:
         for j in subseq_lst:
             if (i.name in dup_lst):
                 continue
             else:
-                subseq_boundaries=get_fuzzy_alns(i, j, percent_match)
-                if (filter_seq_by_subseq_validity(i, subseq_boundaries[2], subseq_boundaries[3])):
+                seq_subseq_aln_boundaries=get_aln_boundaries(i, j, percent_match)
+                if (check_aln_boundary_validity(i, seq_subseq_aln_boundaries[2], seq_subseq_aln_boundaries[3])):
                     valid_seq_lst.append(i)
+                    seq_subseq_aln_boundaries_lst.append([i.name, seq_subseq_aln_boundaries])
                     dup_lst.append(i.name)
     print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
+    return(valid_seq_lst, seq_subseq_aln_boundaries_lst)
 
-    # FIXME - the algorithm above will create duplicates in valid_seq_lst when fed subseqs with high similarity
-    # We will remove duplicates from the list by converting to a dict and then back, because it's easy
-    # but, it's probably better to rework the alg to not have that problem in the first place
-    print(f"nSeqs with non-dup valid substrings \t{len(valid_seq_lst)}")
-
-    return(valid_seq_lst)
-
-def filter_seq_by_subseq_validity(seq, f_idx, r_idx):
+def check_aln_boundary_validity(seq, f_idx, r_idx):
     '''
-    Takes a Seq object and two barcode indices (f and r), and returns a bool.
-    Removes invalid sequences from an input list of sequences.
-    We make the following assumptions:
-        - An index with the value of [-1,-1] could not be found in the sequence
-        - A seq with no indices is invalid
-        - A seq with a 'f' and a 'r' index is invalid
-
-    This check will not catch concatamers.
-    It will also not catch hiccups with other diagnostic features.
-
+    Takes a Bio.Seq object and two barcode indices (`f` and `r`).
+    If `f` and `r` have alternate validity values, return False.
+    Otherwise, return True.
     `f_idx` and `r_idx` should look like this:
     ['f',[int,int]],['r',[int,int]]
     '''
-    if ((f_idx[1]==[-1,-1]) & (r_idx[1]==[-1,-1])):
-        return False
-    elif ((f_idx[1]!=[-1,-1]) & (r_idx[1]!=[-1,-1])):
+    if (((f_idx[1]==[-1,-1]) & (r_idx[1]==[-1,-1])) | ((f_idx[1]!=[-1,-1]) & (r_idx[1]!=[-1,-1]))):
         return False
     return True
 
 
-def get_fuzzy_alns(seq, subseq, percent_match):
+def get_aln_boundaries(seq, subseq, percent_match=1):
     '''
     Takes a seq and a subseq, aligns them and returns a list of the alignments.
-    Function searches both the forward and reverse complement, resulting in an output list structured like: 
+    Function searches both the forward and reverse complement.
+    Returns an output list of alignment boundaries structured like: 
         [seq_name,idx,[f,(aln_start, aln_end)],[r,(aln_start, aln_end)]]
     '''
     # for every sequence/index combination, align and find the indices of all high-qual alignments
@@ -93,7 +82,7 @@ def get_fuzzy_alns(seq, subseq, percent_match):
     subseq_loc = ([seq.name, subseq.__str__(),['f',subseq_boundary_lst_f],['r',subseq_boundary_lst_r]])
     return(subseq_loc)
 
-def filter_aln_by_score(aln, max_aln_score, match_percent):
+def filter_aln_by_score(aln, max_aln_score, match_percent=1):
     '''
     Takes an alignment, a max score and a minimum percent of that max score needed to pass.
     Returns a list - either the alignment indices or the invalid indices [-1,-1].
@@ -108,24 +97,23 @@ def filter_aln_by_score(aln, max_aln_score, match_percent):
         seq_aln_boundaries=aln[0].aligned[0].flatten()
         return(min(seq_aln_boundaries), max(seq_aln_boundaries)) # first element of the alignment
 
-def align_target(seq, idx, orientation):
+def align_target(seq, subseq, orientation):
     '''
     Helper function for `check_seq_for_full_index` and others.
     Takes a Bio.Record object and a Bio.Seq object, and aligns them.
-    Returns a tuple of the start and end indices of 'idx' to 'seq'.
+    Returns a tuple of the start and end indices of 'subseq' to 'seq'.
     '''
     # We penalize opening gaps because our markers should theoretically be one group
     aligner=Align.PairwiseAligner()
     aligner.mode = 'local'
     aligner.open_gap_score = -0.5
     aligner.extend_gap_score = -0.1
-    aligner.target_end_gap_score = 0.0
-    aligner.query_end_gap_score = 0.0
+    aligner.target_end_gap_score = aligner.query_end_gap_score = 0.0
 
     if (orientation=='f'):
-        alignment=aligner.align(seq, idx)
+        alignment=aligner.align(seq, subseq)
     elif (orientation=='r'):
-        alignment=aligner.align(seq.reverse_complement(),idx)
+        alignment=aligner.align(seq.reverse_complement(),subseq)
     else:
         raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
     return(alignment)
@@ -133,7 +121,7 @@ def align_target(seq, idx, orientation):
 
 
 
-
+### HOUSEKEEPING FUNCTIONS
 
 def print_args(args):
     print("User-defined arguments:")
@@ -208,7 +196,6 @@ def initialize_df(num_rows, column_lst):
     df = pd.DataFrame(np.nan, index=np.arange(num_rows), columns=column_lst)
     return(df)
 
-
 def make_outdir(prefix):
     """
     Script makes an output directory in your working directory from a prefix.
@@ -216,29 +203,3 @@ def make_outdir(prefix):
     """
     os.makedirs(prefix, exist_ok=True)
     return(prefix)
-
-#def parse_barcodes(file):
-#    '''
-#    DEPRECATED. 
-#    X. Velkeneers would prefer that we use a different approach to demux; see "parse_ONT_demux_file".
-#    Takes in a path to a Stacks-formatted tsv containing 6-nucleotide barcodes in column1 and sample names in column2.
-#    A minimal example is presented here:
-#    ACACCT  R10N00251
-#    ACAGCA  R20N00088
-#    ACCTAC  R20N00078
-#
-#    Returns a dict of containing the barcodes as keys and the individual names as values.
-#    '''
-#    result = {}
-#    with open(file, 'r', encoding="utf-8") as f:
-#        for i, line in enumerate(f, 1):
-#            parts = line.rstrip("\n").split("\t")
-#            print(parts)
-#            if (len(parts) != 2 ):
-#                raise ValueError(f"Malformed line {i}: {line.strip()}")
-#            valid_DNA_nucelotides={'A','T','C','G'}
-#            if (len(parts[1]) != 6  or (not set(parts[1]).issubset(valid_DNA_nucelotides))):
-#                    raise ValueError(f"Malformed barcode {i}: {line.strip()}")
-#            key, value = parts
-#            result[key] = value
-#    return result

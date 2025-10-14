@@ -30,15 +30,19 @@ def main():
     fq_info_df=initialize_df(len(fq_lst), fq_column_lst)
 
 
-    # Get alignments for all combinations of reads and full_indices
-    percent_max_aln_score_for_fuzzy_match=.90
-    for col in demux_df[['index_full', 'barcode_full']]:
-        unique_subseq=demux_df[col].unique()
-        fq_lst=filter_seqs_by_subseq_validity(fq_lst, unique_subseq, percent_max_aln_score_for_fuzzy_match)
-    percent_max_aln_score_for_exact_match=1
+    # Pare down dataset by removing all reads with no index or no barcode
+    REMOVE_SEQS_W_NO_FULL_IDX = REMOVE_SEQS_W_NO_FULL_BARCODE = True
+    if (REMOVE_SEQS_W_NO_FULL_IDX & REMOVE_SEQS_W_NO_FULL_BARCODE):
+        percent_max_aln_score_for_fuzzy_match=.90
+        percent_max_aln_score_for_exact_match=1
+        for col in demux_df[['index_full', 'barcode_full']]:
+            unique_subseq=demux_df[col].unique()
+            fq_lst, fq_subseq_aln_boundaries = filter_seqs_by_subseq_validity(fq_lst, unique_subseq, percent_max_aln_score_for_fuzzy_match)
+            #print(fq_subseq_aln_boundaries[0])
+
+
+
     exit(0)   
-
-
 
 
     ### WRITE BINNED READ
