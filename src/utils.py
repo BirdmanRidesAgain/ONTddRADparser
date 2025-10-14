@@ -1,18 +1,6 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_aln_boundaries","filter_aln_by_score","XOR_aln_boundaries","filter_seqs_by_single_subseq_validity","filter_seqs_by_multiple_subseq_validity"]
-
-import gzip
-from Bio import Seq
-from Bio import SeqIO
+__all__ = ["get_aln_boundaries","filter_aln_by_score","XOR_aln_boundaries","filter_seqs_by_single_subseq_validity","filter_seqs_by_multiple_subseq_validity"]
 from Bio import Restriction
 from Bio import Align
-import numpy as np
-from mimetypes import guess_type
-from functools import partial
-import subprocess
-import shutil
-import io
-import os
-import pandas as pd
 
 enzyme_lst=list(Restriction.__dict__)
 
@@ -27,8 +15,16 @@ def filter_seqs_by_multiple_subseq_validity(seq_lst, boundary_lst):
     seq_subseq_aln_boundaries_lst=[]
 
     for i,j in zip(seq_lst, boundary_lst):
-        # FIXME - XOR_aln_boundary not XORing the barcode/index elements
-        if (XOR_aln_boundaries(j[2],j[3])):
+        # We only test the seq1_f and seq2_r pair
+        # Prior checks guarantee that one of them will always exist, and the only condition is that one, but not both, will exist
+        # 
+        subseq_1_boundaries_f = j[0][2] # element 2 is f, element 3 is r
+        subseq_1_boundaries_r = j[0][3]
+
+        subseq_2_boundaries_f = j[1][2] # element 2 is f, element 3 is r
+        subseq_2_boundaries_r = j[1][3]
+        #if ((XOR_aln_boundaries(subseq_1_boundaries_f, subseq_2_boundaries_r)) | (XOR_aln_boundaries(subseq_2_boundaries_f, subseq_1_boundaries_r))):
+        if (XOR_aln_boundaries(subseq_2_boundaries_f, subseq_1_boundaries_r)):
             valid_seq_lst.append(i)
             seq_subseq_aln_boundaries_lst.append(j)
     print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
@@ -53,7 +49,7 @@ def filter_seqs_by_single_subseq_validity(seq_lst, subseq_lst, percent_match):
     Scenarios 2,3 are valid; all others are removed.
     Finally, all valid SeqRecords and boundaries are returned as a tuple.
     '''
-    #print(f"Input seqs\t{len(seq_lst)}")
+    print(f"Input seqs\t{len(seq_lst)}")
     valid_seq_lst=[]
     seq_subseq_aln_boundaries_lst=[]
     dup_lst=[]
@@ -67,7 +63,7 @@ def filter_seqs_by_single_subseq_validity(seq_lst, subseq_lst, percent_match):
                     valid_seq_lst.append(i)
                     seq_subseq_aln_boundaries_lst.append(seq_subseq_aln_boundaries)
                     dup_lst.append(i.name)
-    #print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
+    print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
     return(valid_seq_lst, seq_subseq_aln_boundaries_lst)
 
 def XOR_aln_boundaries(f_idx, r_idx):
@@ -136,89 +132,3 @@ def align_target(seq, subseq, orientation):
     else:
         raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
     return(alignment)
-
-
-
-
-### HOUSEKEEPING FUNCTIONS
-
-def print_args(args):
-    print("User-defined arguments:")
-    for key, value in vars(args).items():
-        print(f"\t{key}: {value}")
-
-def parse_seqfile(seqfile, format):
-    '''
-    Takes in a path to a sequence file (compressed or uncompressed), and a valid string in SeqIO.parse() denoting the file format.
-    Returns a list of all records in the file.
-    Use case of function generally assumed to be to read fasta/fastq files.
-    '''
-
-    encoding = guess_type(seqfile)[1]
-    _open = partial(gzip.open, mode = 'rt') if encoding == 'gzip' else open
-    with _open(seqfile) as f:
-        seqfile_lst = list(SeqIO.parse(f, format))
-    return seqfile_lst
-
-def parse_ONT_demux_file(filepath):
-    '''
-    Reads a 5-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
-    
-    A minimal example looks like this:
-    individual	index_full	index	barcode_full	barcode
-    R10N00251	CAA...AATT	CGTGAT	AAT...GCA	ACACCT
-    R20N00088	CAA...ATTT	CGTGAT	AAT...GCA	ACAGCA
-
-    Raises a ValueError if either the barcode or index are not 6 or 9 nucleotides long.
-    Returns a data frame.
-    '''
-    df = pd.read_csv(filepath, sep='\t', header='infer')
-    if df.shape[1] != 5:
-        raise ValueError(f"Expected 6 columns, found {df.shape[1]}")
-    
-    # Check columns 3 and 5 (index 2 and 4) for string length 6 or 9
-    for col in [df.columns[2], df.columns[4]]:
-        invalid_rows = df[~df[col].apply(lambda x: isinstance(x, str) and len(x) in (6, 9))]
-        if not invalid_rows.empty:
-            raise ValueError(
-            f"Barcodes and indices '{col}' must be 6 or 9 nucleotides long. "
-            f"Invalid rows:\n{invalid_rows[[col]].to_string(index=True)}"
-            )
-    # Convert columns 2-5 to sequence objects
-    for col in df.columns[1:5]:
-        df[col] = df[col].apply(lambda x: Seq.Seq(str(x)) if pd.notnull(x) else x)
-    
-    return df
-
-def write_seqfile(filename, seqs, format):
-    '''
-    Takes in a path to an output sequence file, a list of sequences, and and a valid string in SeqIO.parse() denoting the file format.
-    The function then uses SeqIO.write and subprocess to compress the seqfile.
-    There is no returned item.
-    It attempts to use pigz if it is installed, and otherwise uses gzip.
-    '''
-    compressor = "pigz" if shutil.which("pigz") else "gzip"
-    
-    with subprocess.Popen([compressor, "-c"], stdin=subprocess.PIPE, stdout=open(filename, "wb")) as p:
-        # textIO is needed to turn the binary pigz output into a string SeqIO can parse
-        with io.TextIOWrapper(p.stdin, encoding="utf-8") as handle:
-            SeqIO.write(seqs, handle, format)
-            p.stdin.close()
-        p.wait()
-
-def initialize_df(num_rows, column_lst):
-    '''
-    Allocates space for a data frame.
-    Values are given the placeholder value of 'np.NaN' (float) by default.
-    Takes an index and column names as arguments, returns a data frame.
-    '''
-    df = pd.DataFrame(np.nan, index=np.arange(num_rows), columns=column_lst)
-    return(df)
-
-def make_outdir(prefix):
-    """
-    Script makes an output directory in your working directory from a prefix.
-    It then returns the path of that directory to the main script.
-    """
-    os.makedirs(prefix, exist_ok=True)
-    return(prefix)

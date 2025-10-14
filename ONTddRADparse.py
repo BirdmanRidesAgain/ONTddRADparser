@@ -4,6 +4,7 @@
 from argparse import ArgumentParser
 import os
 from src.utils import *
+from src.housekeeping import *
 
 def main():
     ### DEFINE AND CHECK ARGS
@@ -34,7 +35,7 @@ def main():
     REMOVE_SEQS_WO_FULL_IDX = REMOVE_SEQS_WO_FULL_BARCODE = REMOVE_SEQS_W_SUBSEQ_IN_CIS = True
     if (REMOVE_SEQS_WO_FULL_IDX & REMOVE_SEQS_WO_FULL_BARCODE & REMOVE_SEQS_W_SUBSEQ_IN_CIS):
         boundaries_lst=[]
-        percent_max_aln_score_for_fuzzy_match=.90
+        percent_max_aln_score_for_fuzzy_match=.9
         percent_max_aln_score_for_exact_match=1
 
         for col in demux_df[['index_full', 'barcode_full']]:
@@ -42,7 +43,7 @@ def main():
             fq_lst, fq_subseq_aln_boundaries_lst = filter_seqs_by_single_subseq_validity(fq_lst, unique_subseq, percent_max_aln_score_for_fuzzy_match)
             boundaries_lst.append(fq_subseq_aln_boundaries_lst)
         boundaries_lst=list(zip(boundaries_lst[0],boundaries_lst[1]))
-        fq_lst, fq_subseq_aln_boundaries_lst = filter_seqs_by_multiple_subseq_validity(fq_lst, fq_subseq_aln_boundaries_lst)
+        fq_lst, fq_subseq_aln_boundaries_lst = filter_seqs_by_multiple_subseq_validity(fq_lst, boundaries_lst)
         #results = [XOR_aln_boundaries(i[0], i[1]) for i in boundaries_lst]
 
         #print(boundaries_lst[0])
