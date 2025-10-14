@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_aln_boundaries","filter_aln_by_score","check_aln_boundary_validity","filter_seqs_by_subseq_validity"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "parse_ONT_demux_file","initialize_df","get_aln_boundaries","filter_aln_by_score","XOR_aln_boundaries","filter_seqs_by_single_subseq_validity","filter_seqs_by_multiple_subseq_validity"]
 
 import gzip
 from Bio import Seq
@@ -16,7 +16,26 @@ import pandas as pd
 
 enzyme_lst=list(Restriction.__dict__)
 
-def filter_seqs_by_subseq_validity(seq_lst, subseq_lst, percent_match):
+def filter_seqs_by_multiple_subseq_validity(seq_lst, boundary_lst):
+    '''
+    Takes a list of SeqRecord (`seq_lst`) objects and alignment boundary indices for 2 subseqs.
+    Uses XOR logic via `XOR_aln_boundaries` to remove seqs where both subseqs are in cis.
+    All valid SeqRecords and boundaries are returned as a tuple.
+    '''
+    print(f"Input seqs\t{len(seq_lst)}")
+    valid_seq_lst=[]
+    seq_subseq_aln_boundaries_lst=[]
+
+    for i,j in zip(seq_lst, boundary_lst):
+        # FIXME - XOR_aln_boundary not XORing the barcode/index elements
+        if (XOR_aln_boundaries(j[2],j[3])):
+            valid_seq_lst.append(i)
+            seq_subseq_aln_boundaries_lst.append(j)
+    print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
+    return(valid_seq_lst, seq_subseq_aln_boundaries_lst)
+
+
+def filter_seqs_by_single_subseq_validity(seq_lst, subseq_lst, percent_match):
     '''
     Takes a list of SeqRecord (`seq_lst`) objects, a list of Seqs (`subseq_lst`), and a float (`percent_match`)
         - `subseqs` in this context are assumed to be from demux file
@@ -32,9 +51,9 @@ def filter_seqs_by_subseq_validity(seq_lst, subseq_lst, percent_match):
         4. No valid `subseq` found
 
     Scenarios 2,3 are valid; all others are removed.
-    Finally, all valid SeqRecords are returned as a list.
+    Finally, all valid SeqRecords and boundaries are returned as a tuple.
     '''
-    print(f"Input seqs\t{len(seq_lst)}")
+    #print(f"Input seqs\t{len(seq_lst)}")
     valid_seq_lst=[]
     seq_subseq_aln_boundaries_lst=[]
     dup_lst=[]
@@ -44,25 +63,25 @@ def filter_seqs_by_subseq_validity(seq_lst, subseq_lst, percent_match):
                 continue
             else:
                 seq_subseq_aln_boundaries=get_aln_boundaries(i, j, percent_match)
-                if (check_aln_boundary_validity(i, seq_subseq_aln_boundaries[2], seq_subseq_aln_boundaries[3])):
+                if (XOR_aln_boundaries(seq_subseq_aln_boundaries[2], seq_subseq_aln_boundaries[3])):
                     valid_seq_lst.append(i)
-                    seq_subseq_aln_boundaries_lst.append([i.name, seq_subseq_aln_boundaries])
+                    seq_subseq_aln_boundaries_lst.append(seq_subseq_aln_boundaries)
                     dup_lst.append(i.name)
-    print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
+    #print(f"nSeqs with valid substrings \t{len(valid_seq_lst)}")
     return(valid_seq_lst, seq_subseq_aln_boundaries_lst)
 
-def check_aln_boundary_validity(seq, f_idx, r_idx):
+def XOR_aln_boundaries(f_idx, r_idx):
     '''
-    Takes a Bio.Seq object and two barcode indices (`f` and `r`).
-    If `f` and `r` have alternate validity values, return False.
-    Otherwise, return True.
+    Takes two barcode indices (`f` and `r`), which can be 'valid' or 'invalid' and returns a bool.
+    Evaluated `f` and `r` with XOR logic:
+        - `f` and `r` have alternate validity values, return False.
+        - Otherwise return True.
     `f_idx` and `r_idx` should look like this:
     ['f',[int,int]],['r',[int,int]]
     '''
     if (((f_idx[1]==[-1,-1]) & (r_idx[1]==[-1,-1])) | ((f_idx[1]!=[-1,-1]) & (r_idx[1]!=[-1,-1]))):
         return False
     return True
-
 
 def get_aln_boundaries(seq, subseq, percent_match=1):
     '''

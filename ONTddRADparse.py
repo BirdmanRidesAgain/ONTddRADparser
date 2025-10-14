@@ -30,15 +30,24 @@ def main():
     fq_info_df=initialize_df(len(fq_lst), fq_column_lst)
 
 
-    # Pare down dataset by removing all reads with no index or no barcode
-    REMOVE_SEQS_W_NO_FULL_IDX = REMOVE_SEQS_W_NO_FULL_BARCODE = True
-    if (REMOVE_SEQS_W_NO_FULL_IDX & REMOVE_SEQS_W_NO_FULL_BARCODE):
+    # Code block is always executed; if statement there to explicitly spell out what we're doing
+    REMOVE_SEQS_WO_FULL_IDX = REMOVE_SEQS_WO_FULL_BARCODE = REMOVE_SEQS_W_SUBSEQ_IN_CIS = True
+    if (REMOVE_SEQS_WO_FULL_IDX & REMOVE_SEQS_WO_FULL_BARCODE & REMOVE_SEQS_W_SUBSEQ_IN_CIS):
+        boundaries_lst=[]
         percent_max_aln_score_for_fuzzy_match=.90
         percent_max_aln_score_for_exact_match=1
+
         for col in demux_df[['index_full', 'barcode_full']]:
             unique_subseq=demux_df[col].unique()
-            fq_lst, fq_subseq_aln_boundaries = filter_seqs_by_subseq_validity(fq_lst, unique_subseq, percent_max_aln_score_for_fuzzy_match)
-            #print(fq_subseq_aln_boundaries[0])
+            fq_lst, fq_subseq_aln_boundaries_lst = filter_seqs_by_single_subseq_validity(fq_lst, unique_subseq, percent_max_aln_score_for_fuzzy_match)
+            boundaries_lst.append(fq_subseq_aln_boundaries_lst)
+        boundaries_lst=list(zip(boundaries_lst[0],boundaries_lst[1]))
+        fq_lst, fq_subseq_aln_boundaries_lst = filter_seqs_by_multiple_subseq_validity(fq_lst, fq_subseq_aln_boundaries_lst)
+        #results = [XOR_aln_boundaries(i[0], i[1]) for i in boundaries_lst]
+
+        #print(boundaries_lst[0])
+
+
 
 
 
