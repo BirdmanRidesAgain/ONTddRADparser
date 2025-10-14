@@ -2,6 +2,49 @@ __all__ = ["get_aln_boundaries","filter_aln_by_score","XOR_aln_boundaries","filt
 from Bio import Restriction
 from Bio import Align
 
+class Example:
+    def __init__(self, attr1=None, attr2=None):
+        self.attr1 = attr1
+        self.attr2 = attr2
+
+# Usage example:
+# example1 = Example()
+# example2 = Example(attr1="value1", attr2="value2")
+# print(example1.attr1)
+# example1.attr1 = "somevalue"
+
+
+
+
+class DemuxConstruct:
+    '''
+    Container to represent a DNA sequence and the four regions of its demux construct.
+    Contains one SeqRecord object and four DemuxSubseq objects.
+    DemuxSubseq objects represent `index_full`	`index`	`barcode_full`	`barcode`
+    '''
+    
+    def __init__(self, seq=None, index_full=None, index=None, barcode_full=None, barcode=None):
+        self.seq=seq
+        self.index_full=index_full
+        self.index=index
+        self.barcode_full=barcode_full
+        self.barcode=barcode
+
+class DemuxSubseq:
+    '''
+    Container for a demux subsequence.
+    Represents one of `index_full` `index` `barcode_full` or `barcode`, where these are `types`.
+    Initialized with one Seq object, a `seq_type`, and a `map_type`.
+    Has slots for `seq_type`, `map_type`, `orientation`, `start_idx`, and `end_idx`.
+    '''
+    def __init__(self, seq=None, seq_type=None, map_type=None, orientation=None, start_idx=None, end_idx=None):
+        self.seq=seq
+        self.seq_type=seq_type
+        self.map_type=map_type
+        self.orientation=orientation
+        self.start_idx=start_idx
+        self.end_idx=end_idx
+
 enzyme_lst=list(Restriction.__dict__)
 
 def filter_seqs_by_multiple_subseq_validity(seq_lst, boundary_lst):
