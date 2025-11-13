@@ -3,9 +3,11 @@
 
 from argparse import ArgumentParser
 import os
+from src.housekeeping import convert_demux_df_to_DemuxConstruct_lst
 from src.utils import *
 from src.housekeeping import *
 from src.classes import *
+from src.utils import get_DemuxAlignment
 
 def main():
     ### DEFINE AND CHECK ARGS
@@ -15,8 +17,8 @@ def main():
     parser.add_argument('-p','--prefix', help='Output prefix. Defaults to \'ONTddRADparse_out\' if not set.', type=str, default=os.path.basename(__file__).split(sep='.')[0])
     parser.add_argument('-e1','--enzyme1', help='The restriction enzyme associated with the index. Valid choices come from BioPython.Restriction', type=str)
     parser.add_argument('-e2','--enzyme2', help='The restriction enzyme associated with the barcode. Valid choices come from BioPython.Restriction', type=str)
-    parser.add_argument('-fm','--fuzzy_match_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
-    parser.add_argument('-em','--exact_match_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
+    parser.add_argument('-fm','--fuzzy_aln_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
+    parser.add_argument('-em','--exact_aln_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
 
     args = parser.parse_args()
     #print_args(args)
@@ -25,13 +27,27 @@ def main():
         raise ValueError(f"Invalid enzymes. Enzymes must differ, and valid options are: \n{enzyme_lst}")
 
     ### PARSE IN FILES
-    fq_lst = parse_seqfile(args.fastq, 'fastq')
-    demux_construct_list = parse_ONT_demux_file(args.demux)
-
-    for i in demux_construct_list:
-        print(i)
+    seq_record_lst = parse_seqfile(args.fastq, 'fastq')
+    demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(parse_ONT_demux_file(args.demux), args.fuzzy_aln_percent, args.exact_aln_percent)
 
 
+    # we have a list with many uninitialized alignments.
+    # We'll do an all-to-all, aligning with fuzzy logic first
+    demux_alignment_lst = []
+    for seq_record in seq_record_lst:
+        for demux_construct in demux_construct_list:
+            alignment=DemuxAlignment(seq_record, demux_construct)
+            # use setters to find all boundaries
+            alignment.align_index_full()
+            alignment.align_index()
+            alignment.align_barcode_full()
+            alignment.align_barcode()
+            demux_alignment_lst.append(alignment)
+
+    fuzzy_subseqs=['index_full', 'barcode_full']
+    exact_subseqs=['index', 'barcode']
+    
+    exit(0)
 
 
 
@@ -46,7 +62,6 @@ def main():
     fq_info_df=initialize_df(len(fq_lst), fq_column_lst)
 
 
-    fuzzy_subseqs=['index_full', 'barcode_full']
     testlist=get_valid_seq_subseq_aln_boundaries(fq_lst, demux_construct_list, fuzzy_subseqs, args.fuzzy_match_percent)
 
     # Code block is always executed; if statement there to explicitly spell out what we're doing

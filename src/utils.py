@@ -4,15 +4,59 @@ from Bio import Align
 
 enzyme_lst=list(Restriction.__dict__)
 
+
+def get_aln_boundaries(seq, subseq_name, subseq, percent_match=1):
+    '''
+    Takes a seq and a subseq, aligns them and returns a list of the alignments.
+    Function searches both the forward and reverse complement.
+    Returns an output list of alignment boundaries structured like: 
+        [seq_name,idx,[f,(aln_start, aln_end)],[r,(aln_start, aln_end)]]
+    '''
+    # for every sequence/index combination, align and find the indices of all high-qual alignments
+    max_aln_score=len(subseq)
+    aln_f=align_target(seq, subseq, 'f')
+    aln_r=align_target(seq, subseq, 'r')
+
+    subseq_boundary_lst_f=filter_aln_by_score(aln_f, max_aln_score, percent_match)
+    subseq_boundary_lst_r=filter_aln_by_score(aln_r, max_aln_score, percent_match)
+
+    subseq_loc = ([seq.name, subseq_name, subseq.__str__(),['f',subseq_boundary_lst_f],['r',subseq_boundary_lst_r]])
+    return(subseq_loc)
+
+def filter_aln_by_score(aln, max_aln_score, match_percent=1):
+    '''
+    Takes an alignment, a max score and a minimum percent of that max score needed to pass.
+    Returns a list - either the alignment indices or the invalid indices [-1,-1].
+    '''
+    min_aln_score=max_aln_score*match_percent
+    if (aln.score < min_aln_score):
+        return([-1,-1])
+    else:
+        # the alignment list is always 2 elements long.
+        # the first element contains the indices corresponding to the sequence, which we want
+        # taking the min and max gets us the boundary of where the index aligned plus whatever gaps were opened
+        seq_aln_boundaries=aln[0].aligned[0].flatten()
+        return(min(seq_aln_boundaries), max(seq_aln_boundaries)) # first element of the alignment
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def get_valid_seq_subseq_aln_boundaries(seq_lst, construct_lst, subseq_name_lst, percent_match):
     '''
     Takes an seq_list, and two sets of unique barcodes (assumed to be fuzzy-matching), and a minimum match hit.
     Returns a list of all seqs where 1 of each subseq was found, along with their boundaries.
     '''
     boundaries_lst = []
-
-    for i in construct_lst:
-        print(i)
 
     for col in construct_lst[subseq_name_lst]:
         unique_subseq=construct_lst[col].unique()
@@ -76,62 +120,6 @@ def XOR_aln_boundaries(f_idx, r_idx):
     if (((f_idx[1]==[-1,-1]) & (r_idx[1]==[-1,-1])) | ((f_idx[1]!=[-1,-1]) & (r_idx[1]!=[-1,-1]))):
         return False
     return True
-
-def get_aln_boundaries(seq, subseq_name, subseq, percent_match=1):
-    '''
-    Takes a seq and a subseq, aligns them and returns a list of the alignments.
-    Function searches both the forward and reverse complement.
-    Returns an output list of alignment boundaries structured like: 
-        [seq_name,idx,[f,(aln_start, aln_end)],[r,(aln_start, aln_end)]]
-    '''
-    # for every sequence/index combination, align and find the indices of all high-qual alignments
-    max_aln_score=len(subseq)
-    aln_f=align_target(seq, subseq, 'f')
-    aln_r=align_target(seq, subseq, 'r')
-
-    subseq_boundary_lst_f=filter_aln_by_score(aln_f, max_aln_score, percent_match)
-    subseq_boundary_lst_r=filter_aln_by_score(aln_r, max_aln_score, percent_match)
-
-    subseq_loc = ([seq.name, subseq_name, subseq.__str__(),['f',subseq_boundary_lst_f],['r',subseq_boundary_lst_r]])
-    return(subseq_loc)
-
-def filter_aln_by_score(aln, max_aln_score, match_percent=1):
-    '''
-    Takes an alignment, a max score and a minimum percent of that max score needed to pass.
-    Returns a list - either the alignment indices or the invalid indices [-1,-1].
-    '''
-    min_aln_score=max_aln_score*match_percent
-    if (aln.score < min_aln_score):
-        return([-1,-1])
-    else:
-        # the alignment list is always 2 elements long.
-        # the first element contains the indices corresponding to the sequence, which we want
-        # taking the min and max gets us the boundary of where the index aligned plus whatever gaps were opened
-        seq_aln_boundaries=aln[0].aligned[0].flatten()
-        return(min(seq_aln_boundaries), max(seq_aln_boundaries)) # first element of the alignment
-
-def align_target(seq, subseq, orientation):
-    '''
-    Helper function for `check_seq_for_full_index` and others.
-    Takes a Bio.Record object and a Bio.Seq object, and aligns them.
-    Returns a tuple of the start and end indices of 'subseq' to 'seq'.
-    '''
-    # We penalize opening gaps because our markers should theoretically be one group
-    aligner=Align.PairwiseAligner()
-    aligner.mode = 'local'
-    aligner.open_gap_score = -0.5
-    aligner.extend_gap_score = -0.1
-    aligner.target_end_gap_score = aligner.query_end_gap_score = 0.0
-
-    if (orientation=='f'):
-        alignment=aligner.align(seq, subseq)
-    elif (orientation=='r'):
-        alignment=aligner.align(seq.reverse_complement(),subseq)
-    else:
-        raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
-    return(alignment)
-
-
 
 def pair_lists_by_id(A, B):
     # Create dictionaries mapping ID to element for A and B

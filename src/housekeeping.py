@@ -43,9 +43,8 @@ def parse_ONT_demux_file(filepath):
     R20N00088	CAA...ATTT	CGTGAT	AAT...GCA	ACAGCA
 
     Raises a ValueError if either the barcode or index are not 6 or 9 nucleotides long.
-    Returns a data frame made of `Construct` objects.
+    Returns a data frame made of `DemuxConstruct` objects.
     '''
-    construct_list = []
     df = pd.read_csv(filepath, sep='\t', header='infer')
     if df.shape[1] != 5:
         raise ValueError(f"Expected 6 columns, found {df.shape[1]}")
@@ -58,10 +57,14 @@ def parse_ONT_demux_file(filepath):
             f"Barcodes and indices '{col}' must be 6 or 9 nucleotides long. "
             f"Invalid rows:\n{invalid_rows[[col]].to_string(index=True)}"
             )
+    return df
+
+def convert_demux_df_to_DemuxConstruct_lst(df, fuzzy_aln_percent, exact_aln_percent):
+    construct_lst = []
     for index, row in df.iterrows():
-        i=Construct(row[0],row[1],row[2],row[3],row[4])
-        construct_list.append(i)    
-    return construct_list
+        i=DemuxConstruct(row[0],row[1],row[2],row[3],row[4], fuzzy_aln_percent, exact_aln_percent)
+        construct_lst.append(i)    
+    return(construct_lst)
 
 def write_seqfile(filename, seqs, format):
     '''
