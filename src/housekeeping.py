@@ -1,7 +1,6 @@
 __all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "initialize_df","parse_ONT_demux_file"]
 
 import gzip
-from Bio import Seq
 from Bio import SeqIO
 from Bio import Restriction
 import numpy as np
@@ -12,6 +11,7 @@ import shutil
 import io
 import os
 import pandas as pd
+from src.classes import *
 
 enzyme_lst=list(Restriction.__dict__)
 
@@ -45,6 +45,7 @@ def parse_ONT_demux_file(filepath):
     Raises a ValueError if either the barcode or index are not 6 or 9 nucleotides long.
     Returns a data frame made of `Construct` objects.
     '''
+    construct_list = []
     df = pd.read_csv(filepath, sep='\t', header='infer')
     if df.shape[1] != 5:
         raise ValueError(f"Expected 6 columns, found {df.shape[1]}")
@@ -57,11 +58,10 @@ def parse_ONT_demux_file(filepath):
             f"Barcodes and indices '{col}' must be 6 or 9 nucleotides long. "
             f"Invalid rows:\n{invalid_rows[[col]].to_string(index=True)}"
             )
-    # Convert columns 2-5 to sequence objects
-    for col in df.columns[1:5]:
-        df[col] = df[col].apply(lambda x: Seq.Seq(str(x)) if pd.notnull(x) else x)
-    
-    return df
+    for index, row in df.iterrows():
+        i=Construct(row[0],row[1],row[2],row[3],row[4])
+        construct_list.append(i)    
+    return construct_list
 
 def write_seqfile(filename, seqs, format):
     '''

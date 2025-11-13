@@ -4,15 +4,18 @@ from Bio import Align
 
 enzyme_lst=list(Restriction.__dict__)
 
-def get_valid_seq_subseq_aln_boundaries(seq_lst, demux_df, subseq_name_lst, percent_match):
+def get_valid_seq_subseq_aln_boundaries(seq_lst, construct_lst, subseq_name_lst, percent_match):
     '''
     Takes an seq_list, and two sets of unique barcodes (assumed to be fuzzy-matching), and a minimum match hit.
     Returns a list of all seqs where 1 of each subseq was found, along with their boundaries.
     '''
     boundaries_lst = []
 
-    for col in demux_df[subseq_name_lst]:
-        unique_subseq=demux_df[col].unique()
+    for i in construct_lst:
+        print(i)
+
+    for col in construct_lst[subseq_name_lst]:
+        unique_subseq=construct_lst[col].unique()
         seq_lst, seq_subseq_aln_boundaries_lst = filter_seqs_by_single_subseq_validity(seq_lst, col, unique_subseq, percent_match)
         boundaries_lst.append(seq_subseq_aln_boundaries_lst)
     print(len(boundaries_lst[0]),len(boundaries_lst[1]))

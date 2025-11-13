@@ -26,7 +26,18 @@ def main():
 
     ### PARSE IN FILES
     fq_lst = parse_seqfile(args.fastq, 'fastq')
-    demux_df = parse_ONT_demux_file(args.demux)
+    demux_construct_list = parse_ONT_demux_file(args.demux)
+
+    for i in demux_construct_list:
+        print(i)
+
+
+
+
+
+
+
+
 
 
     ### POPULATE DATA FRAME WITH READS TO BE KEPT/REMOVED
@@ -36,16 +47,14 @@ def main():
 
 
     fuzzy_subseqs=['index_full', 'barcode_full']
-    testlist=get_valid_seq_subseq_aln_boundaries(fq_lst, demux_df, fuzzy_subseqs, args.fuzzy_match_percent)
-    #print(testlist[0])
-    exit(0)
+    testlist=get_valid_seq_subseq_aln_boundaries(fq_lst, demux_construct_list, fuzzy_subseqs, args.fuzzy_match_percent)
 
     # Code block is always executed; if statement there to explicitly spell out what we're doing
     REMOVE_SEQS_WO_FULL_IDX = REMOVE_SEQS_WO_FULL_BARCODE = True
     if (REMOVE_SEQS_WO_FULL_IDX & REMOVE_SEQS_WO_FULL_BARCODE):
         boundaries_lst=[]
-        for col in demux_df[['index_full', 'barcode_full']]:
-            unique_subseq=demux_df[col].unique()
+        for col in demux_construct_list[['index_full', 'barcode_full']]:
+            unique_subseq=demux_construct_list[col].unique()
             fq_lst, fq_subseq_aln_boundaries_lst = filter_seqs_by_single_subseq_validity(fq_lst, unique_subseq, percent_max_aln_score_for_fuzzy_match)
             boundaries_lst.append(fq_subseq_aln_boundaries_lst)
         boundaries_lst=list(zip(boundaries_lst[0],boundaries_lst[1]))
