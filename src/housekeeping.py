@@ -35,7 +35,7 @@ def parse_seqfile(seqfile, format):
 
 def parse_ONT_demux_file(filepath):
     '''
-    Reads a 5-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
+    Takes in a 5-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
     
     A minimal example looks like this:
     individual	index_full	index	barcode_full	barcode
@@ -43,7 +43,7 @@ def parse_ONT_demux_file(filepath):
     R20N00088	CAA...ATTT	CGTGAT	AAT...GCA	ACAGCA
 
     Raises a ValueError if either the barcode or index are not 6 or 9 nucleotides long.
-    Returns a data frame.
+    Returns a data frame made of `Construct` objects.
     '''
     df = pd.read_csv(filepath, sep='\t', header='infer')
     if df.shape[1] != 5:
