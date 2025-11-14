@@ -3,11 +3,11 @@
 
 from argparse import ArgumentParser
 import os
+from src.classes import init_aligner
 from src.housekeeping import convert_demux_df_to_DemuxConstruct_lst
 from src.utils import *
 from src.housekeeping import *
 from src.classes import *
-from src.utils import get_DemuxAlignment
 
 def main():
     ### DEFINE AND CHECK ARGS
@@ -30,25 +30,37 @@ def main():
     seq_record_lst = parse_seqfile(args.fastq, 'fastq')
     demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(parse_ONT_demux_file(args.demux), args.fuzzy_aln_percent, args.exact_aln_percent)
 
+    ### init aligner to avoid having to recreate it every time we call DemuxAlignment
+    aligner=init_aligner()
 
-    # we have a list with many uninitialized alignments.
-    # We'll do an all-to-all, aligning with fuzzy logic first
+    # generate all-against-all alignments
     demux_alignment_lst = []
     for seq_record in seq_record_lst:
         for demux_construct in demux_construct_list:
-            alignment=DemuxAlignment(seq_record, demux_construct)
-            # use setters to find all boundaries
-            alignment.align_index_full()
-            alignment.align_index()
-            alignment.align_barcode_full()
-            alignment.align_barcode()
-            demux_alignment_lst.append(alignment)
+            alignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
+            alignment.align_all_ConstructElements()
+            #print(alignment.valid)
+            if (alignment.valid):
+                demux_alignment_lst.append(alignment)
 
-    fuzzy_subseqs=['index_full', 'barcode_full']
-    exact_subseqs=['index', 'barcode']
+    print(demux_alignment_lst[1])
+
+    # print files to an output directory
+    outdir=make_outdir(args.prefix)
+
+
     
     exit(0)
 
+
+
+
+    ### SCAN FOR CONCATAMERS
+
+    # Build output directory
+    filename="newname.fq.gz"
+    fq_path=f"{outdir}/{filename}"
+    write_seqfile(fq_path, fq_lst, 'fastq')
 
 
 
@@ -75,29 +87,6 @@ def main():
         boundaries_lst=list(zip(boundaries_lst[0],boundaries_lst[1]))
         print(boundaries_lst[0])
 
-
-    ###
-    # We now have a list of valid seqs and the boundaries of their subseq alignments
-    # We need to use the boundaries to search for barcode_
-
-
-
-
-
-    exit(0)   
-
-
-    ### WRITE BINNED READ
-    ## OUTPUT FILES TO DIRECTORY
-    outdir=make_outdir(args.prefix)
-
-
-    ### SCAN FOR CONCATAMERS
-
-    # Build output directory
-    filename="newname.fq.gz"
-    fq_path=f"{outdir}/{filename}"
-    write_seqfile(fq_path, fq_lst, 'fastq')
 
 
 # If this is being imported

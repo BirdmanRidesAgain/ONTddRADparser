@@ -1,4 +1,4 @@
-__all__ = ["Boundary","ConstructElement","DemuxConstruct","DemuxAlignment"]
+__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment"]
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -10,17 +10,17 @@ class Boundary:
     Simple class representing the zero-indexed start/end boundaries of two sequences.
     Alignments are made with BioPython's Align module.
     '''
-    def __init__(self, type, orientation, start_idx, end_idx):
+
+    def __init__(self, type='undefined', orientation='undefined', start_idx=np.nan, end_idx=np.nan):
         self.type = type
         self.orientation = orientation
         self.start_idx = start_idx
         self.end_idx = end_idx
+
     def __str__(self):
         str=f"""
-        Type {self.type}
-        Orientation {self.orientation}
-        Alignment start {self.start_idx}
-        Alignment end {self.end_idx}
+        Type\tOrientation\tStart_idx\tEnd_index
+        {self.type}\t{self.orientation}\t{self.start_idx}\t{self.end_idx}
         """
         return(str)
 
@@ -36,9 +36,9 @@ class ConstructElement:
         self.seq = Seq(seq)
 
     def __str__(self):
-        str = f"""ConstructElement type {self.type}
-        ConstructElement alignment percentage {self.aln_percent}
-        ConstructElement sequence {self.seq}
+        str = f"""
+        type\taln_percent\tseq
+        {self.type}\t{self.aln_percent}\t{self.seq}
         """
         return(str)
 
@@ -64,72 +64,89 @@ class DemuxConstruct:
         Short barcode: {self.barcode}"""
         return(str)
 
-class DemuxAlignment:
+class ConstructElementAlignment:
+    '''
+    Represents a ConstructElement aligned to a SeqRecord.
+    Generates/houses boundary objects and stores the validity of their alignment.
+    A ConstructElementAlignment is valid if XORing RBoundary and RBoundary is true.
+    '''
+    FBoundary = Boundary()
+    RBoundary = Boundary()
+
+    valid = False
+
+    def __init__(self, SeqRecord, ConstructElement, aligner):
+        self.SeqRecord = SeqRecord
+        self.ConstructElement = ConstructElement
+        self.aligner = aligner
+
+    def __str__(self):
+        str=f'''
+        SeqRecord\tConstructElement_type\taln_valid\tFBoundary_start_idx\tFBoundary_end_idx\tRBoundary_start_idx\tRBoundary_end_idx
+        {self.SeqRecord.id}\t{self.ConstructElement.type}\t{self.valid}\t{self.FBoundary.start_idx}\t{self.FBoundary.end_idx}\t{self.RBoundary.start_idx}\t{self.RBoundary.end_idx}
+        '''
+        return(str)
+
+    def align_ConstructElement(self, orientation):
+        '''Aligns the subset to the seq in either the 5->3 ('f') or 3->5 ('r') direction.'''
+        aln = align_target(self.SeqRecord.seq, self.ConstructElement.seq, self.aligner, orientation, self.ConstructElement.aln_percent)
+        if (orientation == 'f'):
+            self.FBoundary=Boundary(self.ConstructElement.type, orientation, aln[0], aln[1])
+        elif (orientation == 'r'):
+            self.RBoundary=Boundary(self.ConstructElement.type, orientation, aln[0], aln[1])
+        else:
+            raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
+        self.check_ConstructElementAlignment_validity()
+
+    def check_ConstructElementAlignment_validity(self):
+        # explicitly spelling out conditions for idiot future self
+        no_construct_aligned = (np.isnan(self.FBoundary.start_idx)) & (np.isnan(self.RBoundary.start_idx == np.nan))
+        construct_aligned_f_and_r = (not np.isnan(self.FBoundary.start_idx)) & (not np.isnan(self.RBoundary.start_idx))
+        if (no_construct_aligned | construct_aligned_f_and_r):
+            self.valid = False
+        else:
+            self.valid = True
+
+class DemuxConstructAlignment:
     '''
     Represents the alignments between a SecRecord object and a DemuxConstruct.
     Contains alignments of four ConstructElements (forward and reverse, so 8 in total), and a 'valid' tag.
     Also contains
     '''
 
-    # We add two boundaries for forward and reverse orientations
-    uninitialized_boundary = Boundary('undefined','undefined', np.nan, np.nan)
-    index_full_boundaries = [uninitialized_boundary, uninitialized_boundary]
-    index_boundaries = [uninitialized_boundary, uninitialized_boundary]
-    barcode_full_boundaries = [uninitialized_boundary, uninitialized_boundary]
-    barcode_boundaries = [uninitialized_boundary, uninitialized_boundary]
-
     # we set validity true until proven otherwise
-    valid=True
+    valid=False
 
-    def __init__(self, SeqRecord, construct, aligner):
+    def __init__(self, SeqRecord, DemuxConstruct, aligner):
         self.SeqRecord = SeqRecord
-        self.DemuxConstruct = construct
-        self.aligner = aligner
+        self.DemuxConstruct = DemuxConstruct
+        self.index_full_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.index_full, aligner)
+        self.index_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.index, aligner)
+        self.barcode_full_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
+        self.barcode_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode, aligner)
 
     def __str__(self):
-        str = f"""Alignment between SeqRecord {self.SeqRecord.id} + Construct {self.DemuxConstruct.sample_id}.
-        Construct element\tstart_idx\tend_idx\t
-        Full index F\t{self.index_full_boundaries[0].start_idx}\t{self.index_full_boundaries[0].end_idx}
-        Full index R\t{self.index_full_boundaries[1].start_idx}\t{self.index_full_boundaries[1].end_idx}
-        Short index F\t{self.index_boundaries[0].start_idx}\t{self.index_boundaries[0].end_idx}
-        Short index R\t{self.index_boundaries[1].start_idx}\t{self.index_boundaries[1].end_idx}
-        Full barcode F\t{self.barcode_full_boundaries[0].start_idx}\t{self.barcode_full_boundaries[0].end_idx}
-        Full barcode R\t{self.barcode_full_boundaries[1].start_idx}\t{self.barcode_full_boundaries[1].end_idx}
-        Short barcode F\t{self.barcode_boundaries[0].start_idx}\t{self.barcode_boundaries[0].end_idx}
-        Short barcode R\t{self.barcode_boundaries[1].start_idx}\t{self.barcode_boundaries[1].end_idx}
-    
-        Validity of alignment={self.valid}
+
+        str = f"""
+        SeqRecord\tDemuxConstruct_sample_id\tDemuxConstructAlignment_valid\tindex_full_valid\tindex_valid\tbarcode_full_valid\tbarcode_valid
+        {self.SeqRecord.id}\t{self.DemuxConstruct.sample_id}\t{self.valid}\t{self.index_full_aln.valid}\t{self.index_aln.valid}\t{self.barcode_full_aln.valid}\t{self.barcode_aln.valid}
         """
         return(str)
-    
-    def align_index_full(self):
-        aln_f = align_target(self.SeqRecord.seq, self.DemuxConstruct.index_full.seq, self.aligner, 'f', self.DemuxConstruct.index_full.aln_percent)
-        aln_r = align_target(self.SeqRecord.seq, self.DemuxConstruct.index_full.seq, self.aligner, 'r', self.DemuxConstruct.index_full.aln_percent)
-        f_boundary = Boundary(self.DemuxConstruct.index_full.type, 'f', aln_f[0], aln_f[1])
-        r_boundary = Boundary(self.DemuxConstruct.index_full.type, 'r', aln_r[0], aln_r[1])
-        self.index_full_boundaries=[f_boundary,r_boundary]
 
-    def align_index(self):
-        aln_f = align_target(self.SeqRecord.seq, self.DemuxConstruct.index.seq, self.aligner, 'f', self.DemuxConstruct.index.aln_percent)
-        aln_r = align_target(self.SeqRecord.seq, self.DemuxConstruct.index.seq, self.aligner, 'r', self.DemuxConstruct.index.aln_percent)
-        f_boundary = Boundary(self.DemuxConstruct.index.type, 'f', aln_f[0], aln_f[1])
-        r_boundary = Boundary(self.DemuxConstruct.index.type, 'r', aln_r[0], aln_r[1])
-        self.index_boundaries=[f_boundary,r_boundary]
+    def check_DemuxConstructAlignment_validity(self):
+        ConstructElement_list = [self.index_full_aln.valid, self.index_aln.valid, self.barcode_full_aln.valid, self.barcode_aln.valid]
+        if not all(ConstructElement_list):
+            self.valid = False
+        else:
+            self.valid = True
 
-    def align_barcode_full(self):
-        aln_f = align_target(self.SeqRecord.seq, self.DemuxConstruct.barcode_full.seq, self.aligner, 'f', self.DemuxConstruct.barcode_full.aln_percent)
-        aln_r = align_target(self.SeqRecord.seq, self.DemuxConstruct.barcode_full.seq, self.aligner, 'r', self.DemuxConstruct.barcode_full.aln_percent)
-        f_boundary = Boundary(self.DemuxConstruct.barcode_full.type, 'f', aln_f[0], aln_f[1])
-        r_boundary = Boundary(self.DemuxConstruct.barcode_full.type, 'r', aln_r[0], aln_r[1])
-        self.barcode_full_boundaries=[f_boundary,r_boundary]
-
-
-    def align_barcode(self):
-        aln_f = align_target(self.SeqRecord.seq, self.DemuxConstruct.barcode.seq, self.aligner, 'f', self.DemuxConstruct.barcode.aln_percent)
-        aln_r = align_target(self.SeqRecord.seq, self.DemuxConstruct.barcode.seq, self.aligner, 'r', self.DemuxConstruct.barcode.aln_percent)
-        f_boundary = Boundary(self.DemuxConstruct.barcode.type, 'f', aln_f[0], aln_f[1])
-        r_boundary = Boundary(self.DemuxConstruct.barcode.type, 'r', aln_r[0], aln_r[1])
-        self.barcode_boundaries=[f_boundary,r_boundary]
+    def align_all_ConstructElements(self):
+        construct_element_alignments = [self.index_full_aln, self.index_aln, self.barcode_full_aln, self.barcode_aln]
+        orientations = ['f', 'r']
+        for alignment in construct_element_alignments:
+            for orientation in orientations:
+                alignment.align_ConstructElement(orientation)
+        self.check_DemuxConstructAlignment_validity()
 
 def align_target(seq, subseq, aligner, orientation, aln_percent):
     '''
@@ -164,18 +181,18 @@ def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
     aligner.extend_gap_score = extend_gap_score
     return(aligner)
 
-
-
-
-
 def main():
+    # kept for testing purposes.
+
+
+
     # Define sample variables
     id='R10N00251'	
     index_full='CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATT'
     index='CGTGAT'
     barcode_full='AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA'
     barcode='ACACCT'
-    seqrec=SeqRecord(Seq("CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATTAATGATACGGCGACGTGATCCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA"), id='test_sample')
+    seqrec=SeqRecord(Seq("CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATTAATGATACGGCGACGTGATCCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA"), id='test_seq')
 
     fuzzy_aln=.9
     exact_aln=1
@@ -183,19 +200,18 @@ def main():
     # construct relevant class examples
     construct=DemuxConstruct(id, index_full, index, barcode_full, barcode, fuzzy_aln, exact_aln)
     aligner = init_aligner()
-    alignment=DemuxAlignment(seqrec, construct, aligner)
+    alignment=DemuxConstructAlignment(seqrec, construct, aligner)
     alignment.barcode_boundaries=[Boundary('barcode','f' , 0, -1),Boundary('barcode','r' , 0, -1)]
-    print(alignment)
 
     # testing method for setting attributes
-    alignment.align_index_full()
-    print(alignment)
-    alignment.align_index()
-    alignment.align_barcode_full()
-    alignment.align_barcode()
     print(alignment)
 
 
+    barcode_element=ConstructElement('barcode', exact_aln, barcode)
+    elementalignment=ConstructElementAlignment(seqrec, barcode_element, aligner)
+    elementalignment.align_ConstructElement('f')
+    elementalignment.align_ConstructElement('r')
+    print(elementalignment)
 
 if __name__=="__main__":
     main()

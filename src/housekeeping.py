@@ -62,7 +62,7 @@ def parse_ONT_demux_file(filepath):
 def convert_demux_df_to_DemuxConstruct_lst(df, fuzzy_aln_percent, exact_aln_percent):
     construct_lst = []
     for index, row in df.iterrows():
-        i=DemuxConstruct(row[0],row[1],row[2],row[3],row[4], fuzzy_aln_percent, exact_aln_percent)
+        i=DemuxConstruct(row.iloc[0],row.iloc[1],row.iloc[2],row.iloc[3],row.iloc[4], fuzzy_aln_percent, exact_aln_percent)
         construct_lst.append(i)    
     return(construct_lst)
 
