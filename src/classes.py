@@ -1,4 +1,4 @@
-__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment", "FastqFile"]
+__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment", "FastqFile", "init_aligner"]
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord

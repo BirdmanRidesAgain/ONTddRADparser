@@ -3,10 +3,7 @@
 
 from argparse import ArgumentParser
 import os
-from src.classes import init_aligner
-from src.housekeeping import convert_demux_df_to_DemuxConstruct_lst
 from src.utils import *
-from src.housekeeping import *
 from src.classes import *
 
 def main():
@@ -30,31 +27,30 @@ def main():
     seq_record_lst = parse_seqfile(args.fastq, 'fastq')
     demux_df = parse_demux_file(args.demux)
     demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(demux_df, args.fuzzy_aln_percent, args.exact_aln_percent)
+    # fixme - ensure that all DemuxConstruct.sample_ids in this list are unique
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
     aligner=init_aligner()
 
-    ## generate all-against-all alignments
-    #demux_alignment_lst = []
-    #for seq_record in seq_record_lst:
-    #    for demux_construct in demux_construct_list:
-    #        alignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
-    #        alignment.align_all_ConstructElements()
-    #        #print(alignment.valid)
-    #        if (alignment.valid):
-    #            demux_alignment_lst.append(alignment)
-#
+    # generate all-against-all alignments
+    demux_alignment_lst = []
+    for seq_record in seq_record_lst:
+        for demux_construct in demux_construct_list:
+            alignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
+            alignment.align_all_ConstructElements()
+            if (alignment.valid):
+                demux_alignment_lst.append(alignment)
     #print(demux_alignment_lst[1])
 
     # print files to an output directory
 
 
 
-    for i in (demux_df['individual'].unique()):
-        
-    fq_path=f"{outdir}/{filename}"
-    write_seqfile(fq_path, fq_lst, 'fastq')
-    outdir=make_outdir(args.prefix)
+    #for i in (demux_df['sample'].unique()):
+    #    
+    #    fq_path=f"{outdir}/{filename}"
+    #write_seqfile(fq_path, fq_lst, 'fastq')
+    #outdir=make_outdir(args.prefix)
 
 
     
