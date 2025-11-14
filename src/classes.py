@@ -1,9 +1,14 @@
-__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment"]
+__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment", "FastqFile"]
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import Align
+from Bio import SeqIO
 import numpy as np
+from shutil import which
+import subprocess
+from io import TextIOWrapper
+
 
 class Boundary:
     '''
@@ -134,11 +139,15 @@ class DemuxConstructAlignment:
         return(str)
 
     def check_DemuxConstructAlignment_validity(self):
+        
+        # check 1 - each ConstructElement must be valid as an element
         ConstructElement_list = [self.index_full_aln.valid, self.index_aln.valid, self.barcode_full_aln.valid, self.barcode_aln.valid]
         if not all(ConstructElement_list):
             self.valid = False
         else:
             self.valid = True
+
+        # check 2 - each ConstructElement must 
 
     def align_all_ConstructElements(self):
         construct_element_alignments = [self.index_full_aln, self.index_aln, self.barcode_full_aln, self.barcode_aln]
@@ -147,6 +156,38 @@ class DemuxConstructAlignment:
             for orientation in orientations:
                 alignment.align_ConstructElement(orientation)
         self.check_DemuxConstructAlignment_validity()
+
+class FastqFile:
+    '''
+    Represents a name and a set of associated sequences.
+    Written to the working directory by default, optionally takes an output directory.
+    '''
+    format = 'fastq'
+
+    def __init__(self, Seqs, filename, outdir='.', ):
+        self.Seqs = Seqs
+        if (not filename.endswith('.fq.gz')):
+            filename=filename+'.fq.gz'
+        self.filename = filename
+        if (not outdir.endswith('/')):
+            outdir=outdir+'/'
+        self.outdir=outdir
+        self.filepath = f'{self.outdir}{self.filename}'
+
+    def write_FastqFile_to_outdir(self):
+        '''
+        Thin wrapper around SeqIO.write.
+        Uses `subprocess` to compress files - looks for `pigz` by default; otherwise uses `gzip`.
+        '''
+        compressor = "pigz" if which("pigz") else "gzip"
+
+        with subprocess.Popen([compressor, "-c"], stdin=subprocess.PIPE, stdout=open(self.filepath, "wb")) as p:
+            # textIO is needed to turn the binary pigz output into a string SeqIO can parse
+            with TextIOWrapper(p.stdin, encoding="utf-8") as handle:
+                SeqIO.write(self.Seqs, handle, self.format)
+                p.stdin.close()
+            p.wait()
+
 
 def align_target(seq, subseq, aligner, orientation, aln_percent):
     '''
@@ -184,15 +225,18 @@ def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
 def main():
     # kept for testing purposes.
 
-
-
     # Define sample variables
     id='R10N00251'	
     index_full='CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATT'
     index='CGTGAT'
     barcode_full='AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA'
     barcode='ACACCT'
-    seqrec=SeqRecord(Seq("CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATTAATGATACGGCGACGTGATCCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA"), id='test_seq')
+    seqrec = SeqRecord(Seq("CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATTAATGATACGGCGACGTGATCCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA"), id='test_seq')
+    seqrec.letter_annotations["phred_quality"] = [40] * len(seqrec.seq) # added to make it a valid fastq
+
+    testfile=FastqFile([seqrec], id)
+    testfile.write_FastqFile_to_outdir()
+
 
     fuzzy_aln=.9
     exact_aln=1

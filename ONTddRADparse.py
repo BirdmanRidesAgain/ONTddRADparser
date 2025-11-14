@@ -28,24 +28,32 @@ def main():
 
     ### PARSE IN FILES
     seq_record_lst = parse_seqfile(args.fastq, 'fastq')
-    demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(parse_ONT_demux_file(args.demux), args.fuzzy_aln_percent, args.exact_aln_percent)
+    demux_df = parse_demux_file(args.demux)
+    demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(demux_df, args.fuzzy_aln_percent, args.exact_aln_percent)
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
     aligner=init_aligner()
 
-    # generate all-against-all alignments
-    demux_alignment_lst = []
-    for seq_record in seq_record_lst:
-        for demux_construct in demux_construct_list:
-            alignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
-            alignment.align_all_ConstructElements()
-            #print(alignment.valid)
-            if (alignment.valid):
-                demux_alignment_lst.append(alignment)
-
-    print(demux_alignment_lst[1])
+    ## generate all-against-all alignments
+    #demux_alignment_lst = []
+    #for seq_record in seq_record_lst:
+    #    for demux_construct in demux_construct_list:
+    #        alignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
+    #        alignment.align_all_ConstructElements()
+    #        #print(alignment.valid)
+    #        if (alignment.valid):
+    #            demux_alignment_lst.append(alignment)
+#
+    #print(demux_alignment_lst[1])
 
     # print files to an output directory
+
+
+
+    for i in (demux_df['individual'].unique()):
+        
+    fq_path=f"{outdir}/{filename}"
+    write_seqfile(fq_path, fq_lst, 'fastq')
     outdir=make_outdir(args.prefix)
 
 
@@ -57,10 +65,7 @@ def main():
 
     ### SCAN FOR CONCATAMERS
 
-    # Build output directory
-    filename="newname.fq.gz"
-    fq_path=f"{outdir}/{filename}"
-    write_seqfile(fq_path, fq_lst, 'fastq')
+
 
 
 

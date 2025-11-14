@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "write_seqfile", "make_outdir", "initialize_df","parse_ONT_demux_file"]
+__all__ = ["enzyme_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df","parse_demux_file"]
 
 import gzip
 from Bio import SeqIO
@@ -6,9 +6,7 @@ from Bio import Restriction
 import numpy as np
 from mimetypes import guess_type
 from functools import partial
-import subprocess
-import shutil
-import io
+
 import os
 import pandas as pd
 from src.classes import *
@@ -33,7 +31,7 @@ def parse_seqfile(seqfile, format):
         seqfile_lst = list(SeqIO.parse(f, format))
     return seqfile_lst
 
-def parse_ONT_demux_file(filepath):
+def parse_demux_file(filepath):
     '''
     Takes in a 5-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
     
@@ -66,21 +64,6 @@ def convert_demux_df_to_DemuxConstruct_lst(df, fuzzy_aln_percent, exact_aln_perc
         construct_lst.append(i)    
     return(construct_lst)
 
-def write_seqfile(filename, seqs, format):
-    '''
-    Takes in a path to an output sequence file, a list of sequences, and and a valid string in SeqIO.parse() denoting the file format.
-    The function then uses SeqIO.write and subprocess to compress the seqfile.
-    There is no returned item.
-    It attempts to use pigz if it is installed, and otherwise uses gzip.
-    '''
-    compressor = "pigz" if shutil.which("pigz") else "gzip"
-    
-    with subprocess.Popen([compressor, "-c"], stdin=subprocess.PIPE, stdout=open(filename, "wb")) as p:
-        # textIO is needed to turn the binary pigz output into a string SeqIO can parse
-        with io.TextIOWrapper(p.stdin, encoding="utf-8") as handle:
-            SeqIO.write(seqs, handle, format)
-            p.stdin.close()
-        p.wait()
 
 def initialize_df(num_rows, column_lst):
     '''
