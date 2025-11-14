@@ -36,7 +36,7 @@ def parse_demux_file(filepath):
     Takes in a 5-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
     
     A minimal example looks like this:
-    sample	index_full	index	barcode_full	barcode
+    sample_id	index_full	index	barcode_full	barcode
     R10N00251	CAA...AATT	CGTGAT	AAT...GCA	ACACCT
     R20N00088	CAA...ATTT	CGTGAT	AAT...GCA	ACAGCA
 
@@ -44,7 +44,7 @@ def parse_demux_file(filepath):
     Returns a data frame.
     '''
     df = pd.read_csv(filepath, sep='\t', header='infer')
-    header=['sample','index_full','index','barcode_full','barcode']
+    header=['sample_id','index_full','index','barcode_full','barcode']
 
     if list(df.columns) != header:
         raise ValueError(

@@ -1,14 +1,15 @@
-__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment", "FastqFile", "init_aligner"]
+__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner"]
 
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio import Align
-from Bio import SeqIO
-import numpy as np
-from shutil import which
+import gzip
 import subprocess
 from io import TextIOWrapper
+from shutil import which
 
+import numpy as np
+from Bio import Align
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 class Boundary:
     '''
@@ -45,28 +46,6 @@ class ConstructElement:
         type\taln_percent\tseq
         {self.type}\t{self.aln_percent}\t{self.seq}
         """
-        return(str)
-
-class DemuxConstruct:
-    '''
-    Represents the construct sequence data we add to our sequences to demux them.
-    Consists of a sample ID and four ConstructElement objects: two 6-9bp ones which must be exact matches, and two longer ones where error is allowed.
-    Canonically, should be read in from your demux file.
-    '''
-    def __init__(self, sample_id, index_full, index, barcode_full, barcode, fuzzy_aln_percent, exact_aln_percent):
-        self.sample_id = sample_id
-        self.index_full = ConstructElement('index_full', fuzzy_aln_percent, index_full)
-        self.index = ConstructElement('index', exact_aln_percent, index)
-        self.barcode_full = ConstructElement('barcode_full', fuzzy_aln_percent, barcode_full)
-        self.barcode = ConstructElement('barcode', exact_aln_percent, barcode)
-
-    def __str__(self):
-        str = f"""Construct object information is:
-        Sample id: {self.sample_id}
-        Full index: {self.index_full}
-        Short index: {self.index}
-        Full barcode: {self.barcode_full}
-        Short barcode: {self.barcode}"""
         return(str)
 
 class ConstructElementAlignment:
@@ -111,6 +90,28 @@ class ConstructElementAlignment:
             self.valid = False
         else:
             self.valid = True
+
+class DemuxConstruct:
+    '''
+    Represents the construct sequence data we add to our sequences to demux them.
+    Consists of a sample ID and four ConstructElement objects: two 6-9bp ones which must be exact matches, and two longer ones where error is allowed.
+    Canonically, should be read in from your demux file.
+    '''
+    def __init__(self, sample_id, index_full, index, barcode_full, barcode, fuzzy_aln_percent, exact_aln_percent):
+        self.sample_id = sample_id
+        self.index_full = ConstructElement('index_full', fuzzy_aln_percent, index_full)
+        self.index = ConstructElement('index', exact_aln_percent, index)
+        self.barcode_full = ConstructElement('barcode_full', fuzzy_aln_percent, barcode_full)
+        self.barcode = ConstructElement('barcode', exact_aln_percent, barcode)
+
+    def __str__(self):
+        str = f"""Construct object information is:
+        Sample id: {self.sample_id}
+        Full index: {self.index_full}
+        Short index: {self.index}
+        Full barcode: {self.barcode_full}
+        Short barcode: {self.barcode}"""
+        return(str)
 
 class DemuxConstructAlignment:
     '''
@@ -157,6 +158,26 @@ class DemuxConstructAlignment:
                 alignment.align_ConstructElement(orientation)
         self.check_DemuxConstructAlignment_validity()
 
+class DemuxxedSample:
+    '''
+    Represents each individual sample with that has sequence data associated with it.
+    Aggregates SeqRecords from DemuxConstructAlignments that share the same sample_id.
+    Uses that information to create a FastqFile by calling that class's method.
+    '''
+    def __init__(self, sample_id):
+        self.sample_id = sample_id
+        self.SeqRecord_lst = []
+    
+    def gather_SeqRecords_from_DemuxConstructAlignment(self, DemuxConstructAlignment):
+        sample_ids_match = (self.sample_id == DemuxConstructAlignment.DemuxConstruct.sample_id)
+        demux_construct_alignment_is_valid = (DemuxConstructAlignment.valid)
+        if (sample_ids_match & demux_construct_alignment_is_valid):
+            self.SeqRecord_lst.append(DemuxConstructAlignment.SeqRecord)
+
+    def init_FastqFile_from_Demuxxed_Sample(self, outdir='.'):
+        f = FastqFile(filename = self.sample_id, outdir=outdir, SeqRecord_lst = self.SeqRecord_lst)
+        return(f)
+    
 class FastqFile:
     '''
     Represents a name and a set of associated sequences.
@@ -164,29 +185,49 @@ class FastqFile:
     '''
     format = 'fastq'
 
-    def __init__(self, Seqs, filename, outdir='.', ):
-        self.Seqs = Seqs
+    def __init__(self, filename, outdir='.', SeqRecord_lst = []):
         if (not filename.endswith('.fq.gz')):
-            filename=filename+'.fq.gz'
+            filename = filename + '.fq.gz'
         self.filename = filename
         if (not outdir.endswith('/')):
-            outdir=outdir+'/'
-        self.outdir=outdir
+            outdir = outdir + '/'
+        self.outdir = outdir
         self.filepath = f'{self.outdir}{self.filename}'
+        self.SeqRecord_lst = SeqRecord_lst
+
+    def append_SeqRecord_to_FastqFile(self, SeqRecord):
+        '''
+        Appends SeqRecord objects to SeqRecord_arr attribute.
+        Thin wrapper around a list.
+        '''
+        self.SeqRecord_lst.append(SeqRecord)
 
     def write_FastqFile_to_outdir(self):
         '''
         Thin wrapper around SeqIO.write.
         Uses `subprocess` to compress files - looks for `pigz` by default; otherwise uses `gzip`.
         '''
-        compressor = "pigz" if which("pigz") else "gzip"
+        pigz_path = which("pigz")
+        if pigz_path:
+            with open(self.filepath, "wb") as outfile, \
+                    subprocess.Popen([pigz_path, "-c"], stdin=subprocess.PIPE, stdout=outfile) as proc:
+                with TextIOWrapper(proc.stdin, encoding="utf-8") as handle:
+                    SeqIO.write(self.SeqRecord_lst, handle, self.format)
+                    handle.flush()
+                proc.stdin.close()
+                proc.wait()
+                if proc.returncode != 0:
+                    raise RuntimeError("pigz failed while writing FASTQ output.")
+        else:
+            with gzip.open(self.filepath, "wt") as handle:
+                SeqIO.write(self.SeqRecord_lst, handle, self.format)
 
-        with subprocess.Popen([compressor, "-c"], stdin=subprocess.PIPE, stdout=open(self.filepath, "wb")) as p:
-            # textIO is needed to turn the binary pigz output into a string SeqIO can parse
-            with TextIOWrapper(p.stdin, encoding="utf-8") as handle:
-                SeqIO.write(self.Seqs, handle, self.format)
-                p.stdin.close()
-            p.wait()
+
+
+
+
+
+
 
 
 def align_target(seq, subseq, aligner, orientation, aln_percent):
@@ -226,17 +267,23 @@ def main():
     # kept for testing purposes.
 
     # Define sample variables
-    id='R10N00251'	
-    index_full='CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATT'
-    index='CGTGAT'
-    barcode_full='AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA'
-    barcode='ACACCT'
-    seqrec = SeqRecord(Seq("CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATTAATGATACGGCGACGTGATCCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA"), id='test_seq')
-    seqrec.letter_annotations["phred_quality"] = [40] * len(seqrec.seq) # added to make it a valid fastq
+    DEFINE_SAMPLES=True
+    if DEFINE_SAMPLES:
+        id='R10N00251'	
+        index_full='CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATT'
+        index='CGTGAT'
+        barcode_full='AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA'
+        barcode='ACACCT'
+        seqrec1 = SeqRecord(Seq("CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATTAATGATACGGCGACGTGATCCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA"), id='test_seq')
+        seqrec1.letter_annotations["phred_quality"] = [40] * len(seqrec1.seq) # added to make it a valid fastq
+        seqrec2 = SeqRecord(Seq("CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATTAATGATACGGCGACGTGATCCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA"), id='test_seq')
+        seqrec2.letter_annotations["phred_quality"] = [40] * len(seqrec2.seq) # added to make it a valid fastq
 
-    testfile=FastqFile([seqrec], id)
+    testfile=FastqFile(id)
+    testfile.append_SeqRecord_to_FastqFile(seqrec1)
+    testfile.append_SeqRecord_to_FastqFile(seqrec2)
+
     testfile.write_FastqFile_to_outdir()
-
 
     fuzzy_aln=.9
     exact_aln=1
@@ -244,18 +291,18 @@ def main():
     # construct relevant class examples
     construct=DemuxConstruct(id, index_full, index, barcode_full, barcode, fuzzy_aln, exact_aln)
     aligner = init_aligner()
-    alignment=DemuxConstructAlignment(seqrec, construct, aligner)
+    alignment=DemuxConstructAlignment(seqrec1, construct, aligner)
     alignment.barcode_boundaries=[Boundary('barcode','f' , 0, -1),Boundary('barcode','r' , 0, -1)]
 
     # testing method for setting attributes
-    print(alignment)
+    #print(alignment)
 
 
     barcode_element=ConstructElement('barcode', exact_aln, barcode)
-    elementalignment=ConstructElementAlignment(seqrec, barcode_element, aligner)
+    elementalignment=ConstructElementAlignment(seqrec1, barcode_element, aligner)
     elementalignment.align_ConstructElement('f')
     elementalignment.align_ConstructElement('r')
-    print(elementalignment)
+    #print(elementalignment)
 
 if __name__=="__main__":
     main()
