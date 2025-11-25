@@ -108,9 +108,21 @@ We score a `DemuxConstructAlignment` as **invalid** (and remove the read) under 
 | `barcode_full` | `barcode` | `index,index_full` | Fuzzy |
 | `barcode` | `barcode_full` | `index,index_full` | Exact |
 
-FIXME : @Keiler Collier An image would make this way clearer
+### Figure 1. Cartoon depiction of valid and invalid `DemuxConstructAlignments`
 
-### 2. @Xander please help
+<img alt='A cartoon showing combinations of reads and barcode index alignments.' src="assets/valid_invalid_demuxconstructaln.png" width="800">
+
+### 2. Remove Reads where short `ConstructElements` are not found near long ones
+
+The 6-9 bp ConstructElements are quite short and can show off-target binding.
+We want to use the coordinates of the long sequences to 'anchor' the short barcode hits.
+
+The short barcode hits should be close to the end or beginning of the long barcode hits.
+We get the distance they can be away from the `Boundary` indices by taking a percentage of the read length (10%?).
+
+If the short barcode hit isn't in that range, we declare the Read invalid
+
+@Xander please help by telling me if that makes sense from a wet-lab perspective
 
 FIXME : @Keiler Collier An image would make this way clearer
 
