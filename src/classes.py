@@ -85,8 +85,10 @@ class ConstructElementAlignment:
     def check_ConstructElementAlignment_validity(self):
         # explicitly spelling out conditions for idiot future self
         no_construct_aligned = (np.isnan(self.FBoundary.start_idx)) & (np.isnan(self.RBoundary.start_idx == np.nan))
+        # allow f and r matches IF the ConstructElement was small; block otherwise
         construct_aligned_f_and_r = (not np.isnan(self.FBoundary.start_idx)) & (not np.isnan(self.RBoundary.start_idx))
-        if (no_construct_aligned | construct_aligned_f_and_r):
+        construct_is_big = (len(self.SeqRecord.seq) >= 9)
+        if (no_construct_aligned | (construct_aligned_f_and_r & construct_is_big)):
             self.valid = False
         else:
             self.valid = True
@@ -120,7 +122,7 @@ class DemuxConstructAlignment:
     Also contains
     '''
 
-    # we set validity true until proven otherwise
+    # we set validity false until proven otherwise
     valid=False
 
     def __init__(self, SeqRecord, DemuxConstruct, aligner):
@@ -224,12 +226,7 @@ class FastqFile:
 
 
 
-
-
-
-
-
-
+# functions
 def align_target(seq, subseq, aligner, orientation, aln_percent):
     '''
     Helper function for `check_seq_for_full_index` and others.
