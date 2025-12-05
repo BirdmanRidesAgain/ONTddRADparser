@@ -37,10 +37,14 @@ def main():
     # generate all-against-all alignments
     demux_alignment_lst = []
     for seq_record in seq_record_lst:
-        for demux_construct in demux_construct_list:
-            DCalignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
+        for DC in demux_construct_list:
+
+            # these three remove all reads which are missing elements, or have individual elements present
+            DCalignment=DemuxConstructAlignment(seq_record, DC, aligner)
             DCalignment.align_all_ConstructElements()
-            DCalignment.check_DemuxConstructAlignment_validity()
+            DCalignment.check_all_ConstructElementAlignments_validity()
+            if (DCalignment.valid):
+                DCalignment.check_DemuxConstructAlignment_validity()
             # there are several more checks we need to ensure validity, but its fine for the moment
             #alignment.print_invalidity_reason_lst()
 

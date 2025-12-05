@@ -27,11 +27,21 @@ class Boundary:
         self.buffer = buffer
 
     def __str__(self):
-        str=f"""
+        str=f'''
         Type\tOrientation\tStart_idx\tEnd_index\tBuffer
         {self.type}\t{self.orientation}\t{self.start_idx}\t{self.end_idx}\t{self.buffer}
-        """
+        '''
         return(str)
+
+    def get_span(self):
+        '''Calculates the span of the boundary, taking the buffer into account when present.
+        If the buffer puts the span past the start of the seq (ie, if it's less than 0), defaults to 0.'''
+        span_start_idx=self.start_idx - self.buffer
+        if (span_start_idx < 0):
+            span_start_idx=0
+        span_end_idx = self.end_idx + self.buffer
+        span_list=[span_start_idx, span_end_idx]
+        return span_list
 
 class ConstructElement:
     '''
@@ -46,10 +56,10 @@ class ConstructElement:
         self.buffer = buffer
 
     def __str__(self):
-        str = f"""
+        str = f'''
         seq\ttype\taln_percent\tbuffer
         {self.type}\t{self.aln_percent}\t{self.seq}\t{self.buffer}
-        """
+        '''
         return(str)
 
 class ConstructElementAlignment:
@@ -86,15 +96,15 @@ class ConstructElementAlignment:
             raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f', 'r'.\n\tActual value: {orientation}")
 
     def check_ConstructElementAlignment_validity(self):
-        """
+        '''
         A ConstructElementAlignment is valid if:
-          - exactly ONE of the boundaries (FBoundary or RBoundary) is aligned, OR
-          - BOTH boundaries are aligned AND the ConstructElement type is 'short'.
+            - exactly ONE of the boundaries (FBoundary or RBoundary) is aligned, OR
+            - BOTH boundaries are aligned AND the ConstructElement type is 'short'.
 
         A boundary is considered "aligned" when:
-          - that boundary has numeric start_idx and end_idx
-          - the other boundary has np.nan for both indices
-        """
+            - that boundary has numeric start_idx and end_idx
+            - the other boundary has np.nan for both indices
+        '''
         # Boundary is considered "aligned" only if BOTH indices are numeric
         f_aligned = (not np.isnan(self.FBoundary.start_idx)) and (not np.isnan(self.FBoundary.end_idx))
         r_aligned = (not np.isnan(self.RBoundary.start_idx)) and (not np.isnan(self.RBoundary.end_idx))
@@ -105,7 +115,8 @@ class ConstructElementAlignment:
         # Additional rule: for short constructs, allow both boundaries aligned
         short_both_aligned_valid = (self.ConstructElement.type == 'short') and f_aligned and r_aligned
 
-        self.valid = xor_valid or short_both_aligned_valid
+        self.valid = xor_valid or short_both_aligned_valid    
+        
 
 class DemuxConstruct:
     '''
@@ -122,12 +133,12 @@ class DemuxConstruct:
         self.barcode = ConstructElement(barcode, 'short', exact_aln_percent, exact_match_buffer)
 
     def __str__(self):
-        str = f"""Construct object information is:
+        str = f'''Construct object information is:
         Sample id: {self.sample_id}
         Full index: {self.index_full}
         Short index: {self.index}
         Full barcode: {self.barcode_full}
-        Short barcode: {self.barcode}"""
+        Short barcode: {self.barcode}'''
         return(str)
 
 class DemuxConstructAlignment:
@@ -151,111 +162,115 @@ class DemuxConstructAlignment:
 
     def __str__(self):
 
-        str = f"""
+        str = f'''
         SeqRecord\tDemuxConstruct_sample_id\tDemuxConstructAlignment_valid\tindex_full_valid\tindex_valid\tbarcode_full_valid\tbarcode_valid
         {self.SeqRecord.id}\t{self.DemuxConstruct.sample_id}\t{self.valid}\t{self.index_full_aln.valid}\t{self.index_aln.valid}\t{self.barcode_full_aln.valid}\t{self.barcode_aln.valid}
-        """
+        '''
         return(str)
+
 
     def check_DemuxConstructAlignment_validity(self):
         '''
         Checks if the DemuxConstructAlignment violates any of the following conditions, and updates 'valid' as necessary.
         Also appends invalidity information to invalidity_reason_lst as needed.
         '''
-        # check 1 - each ConstructElement must be valid as an element
-        ConstructElement_list = [self.index_full_aln, self.index_aln, self.barcode_full_aln, self.barcode_aln]
-        for i in ConstructElement_list:
-            if (not i.valid):
-                self.invalidity_reason_lst.append(f'Invalid {i.ConstructElement.type} ConstructElement')
-                self.valid=False
-                return False 
 
+        # check 2 - each long-short pair must make sense
+        # index-index_full and barcode-barcode_full should have consistent orientations
+        idxes_orientation = self.find_long_shortDemuxConstructAlignment_orientation(
+            ConstructElementAlignment_short=self.index_aln,
+            ConstructElementAlignment_long=self.index_full_aln,
+        )
+        barcodes_orientation = self.find_long_shortDemuxConstructAlignment_orientation(
+            ConstructElementAlignment_short=self.barcode_aln,
+            ConstructElementAlignment_long=self.barcode_full_aln,
+        )
+        if idxes_orientation == 'invalid_align' or barcodes_orientation == 'invalid_align':
+            self.valid = False
+            return False
         else:
-            # check 2 - each long-short pair must make sense
-            # index-index_full and barcode-barcode_full should have consistent orientations
-            idxes_in_same_orientation = self.check_long_shortDemuxConstructAlignment_validity(
-                ConstructElementAlignment_short=self.index_aln,
-                ConstructElementAlignment_long=self.index_full_aln,
-            )
-            barcodes_in_same_orientation = self.check_long_shortDemuxConstructAlignment_validity(
-                ConstructElementAlignment_short=self.barcode_aln,
-                ConstructElementAlignment_long=self.barcode_full_aln,
-            )
-
-            if idxes_in_same_orientation & barcodes_in_same_orientation:
+            if idxes_orientation == barcodes_orientation:
+                self.valid = False
+                return False
+            else:
                 self.valid = True
+                return True
 
-
-
-    def check_long_shortDemuxConstructAlignment_validity(self, ConstructElementAlignment_short, ConstructElementAlignment_long):
+    def find_long_shortDemuxConstructAlignment_orientation(self, ConstructElementAlignment_short, ConstructElementAlignment_long):
         '''
         Checks that a long+short pair of ConstructElementAlignment objects (e.g. index/index_full) are:
         1. In a consistent orientation:
-           - the aligned boundary (F or R) in the short element is on the same side
-             and has the same orientation character as the aligned boundary in the long element
+            - the aligned boundary (F or R) in the short element is on the same side
+            and has the same orientation character as the aligned boundary in the long element
         2. (Index containment check can be added here later if needed.)
 
-                    #barcode's indices should be within barcode-full +- buffer
-        #index-index_full should be ff or rr
         '''
         # Determine which boundary in the LONG element is actually aligned
-        long_f_aligned = (
-            not np.isnan(ConstructElementAlignment_long.FBoundary.start_idx)
-            and not np.isnan(ConstructElementAlignment_long.FBoundary.end_idx)
-        )
-        long_r_aligned = (
-            not np.isnan(ConstructElementAlignment_long.RBoundary.start_idx)
-            and not np.isnan(ConstructElementAlignment_long.RBoundary.end_idx)
-        )
+            # we use the LONG, because only one of those should ever show up in a seq
+        long_f_aligned = (not np.isnan(ConstructElementAlignment_long.FBoundary.start_idx) and not np.isnan(ConstructElementAlignment_long.FBoundary.end_idx))
+        long_r_aligned = (not np.isnan(ConstructElementAlignment_long.RBoundary.start_idx) and not np.isnan(ConstructElementAlignment_long.RBoundary.end_idx))
 
         # We expect exactly one aligned boundary in the long element
         if long_f_aligned == long_r_aligned:
             # Either none or both aligned → invalid pairing
-            return False
+            return 'invalid_align'
 
+        # Make checks for alignment and orientation of long+short elements
         if long_f_aligned:
             # Long uses FBoundary; require short to also use FBoundary with same orientation
-            short_f_aligned = (
-                not np.isnan(ConstructElementAlignment_short.FBoundary.start_idx)
-                and not np.isnan(ConstructElementAlignment_short.FBoundary.end_idx)
-            )
+            short_f_aligned = (not np.isnan(ConstructElementAlignment_short.FBoundary.start_idx)and not np.isnan(ConstructElementAlignment_short.FBoundary.end_idx))  
             if not short_f_aligned:
-                return False
-            if (
-                ConstructElementAlignment_short.FBoundary.orientation
-                != ConstructElementAlignment_long.FBoundary.orientation
-            ):
-                return False
+                return 'invalid_align'
+            if (ConstructElementAlignment_short.FBoundary.orientation!= ConstructElementAlignment_long.FBoundary.orientation):
+                return 'invalid_align'     
+            # now we need to check that the short element is found inside of the long element
+            short_span=ConstructElementAlignment_short.FBoundary.get_span()
+            long_span=ConstructElementAlignment_long.FBoundary.get_span()
+            if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
+                #print(f'BAD:Fshort:[{short_span}],Flong:[{long_span}]', )
+                return 'invalid_align'
+
+        # do the same thing as above, except on the RBoundary
         else:
             # Long uses RBoundary; require short to also use RBoundary with same orientation
-            short_r_aligned = (
-                not np.isnan(ConstructElementAlignment_short.RBoundary.start_idx)
-                and not np.isnan(ConstructElementAlignment_short.RBoundary.end_idx)
-            )
+            short_r_aligned = (not np.isnan(ConstructElementAlignment_short.RBoundary.start_idx)and not np.isnan(ConstructElementAlignment_short.RBoundary.end_idx))
             if not short_r_aligned:
-                return False
-            if (
-                ConstructElementAlignment_short.RBoundary.orientation
-                != ConstructElementAlignment_long.RBoundary.orientation
-            ):
-                return False
+                return 'invalid_align'
+            if (ConstructElementAlignment_short.RBoundary.orientation!= ConstructElementAlignment_long.RBoundary.orientation):
+                return 'invalid_align'
+            # now we need to check that the short element is found inside of the long element
+            short_span=ConstructElementAlignment_short.RBoundary.get_span()
+            long_span=ConstructElementAlignment_long.RBoundary.get_span()
+            if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
+                #print(f'BAD:Rshort:[{short_span}],Rlong:[{long_span}]', )
+                return 'invalid_align'
 
-        return True
-
-        # check 3 - concatamers
+        # Assuming all other checks are passed, return the orientation of both of the values:
+        if (long_f_aligned):
+            return 'F_align'
+        else:
+            return 'R_align'
     
-    def print_invalidity_reason_lst(self):
-        print(self.invalidity_reason_lst)
-
-
     def align_all_ConstructElements(self):
         construct_element_alignments = [self.index_full_aln, self.index_aln, self.barcode_full_aln, self.barcode_aln]
         orientations = ['f', 'r']
         for CEalignment in construct_element_alignments:
             for orientation in orientations:
                 CEalignment.align_ConstructElement(orientation)
-            # we check the CEA_validity AFTER attempting to align in both directions
+
+    def check_all_ConstructElementAlignments_validity(self):
+        '''
+        Wrapper around ConstructElementAlignment.check_ConstructElementAlignment_validity().
+        Ports the logic into the main script so we can weed out SeqQbjects that fail the first line of validation.
+        '''
+        construct_element_alignments = [self.index_full_aln, self.index_aln, self.barcode_full_aln, self.barcode_aln]
+        for CEalignment in construct_element_alignments:
             CEalignment.check_ConstructElementAlignment_validity()
+            if (not CEalignment.valid):
+                self.valid = False
+                return False
+            self.valid=True
+
 
 class DemuxxedSample:
     '''
