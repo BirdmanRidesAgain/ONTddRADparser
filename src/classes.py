@@ -1,8 +1,6 @@
 __all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner"]
 
 import gzip
-from importlib import invalidate_caches
-from operator import inv
 import subprocess
 from io import TextIOWrapper
 from shutil import which
@@ -18,7 +16,6 @@ class Boundary:
     Simple class representing the zero-indexed start/end boundaries of two sequences.
     Alignments are made with BioPython's Align module.
     '''
-
     def __init__(self, type='undefined', orientation='undefined', start_idx=np.nan, end_idx=np.nan, buffer=0):
         self.type = type
         self.orientation = orientation
@@ -168,11 +165,9 @@ class DemuxConstructAlignment:
         '''
         return(str)
 
-
     def check_DemuxConstructAlignment_validity(self):
         '''
         Checks if the DemuxConstructAlignment violates any of the following conditions, and updates 'valid' as necessary.
-        Also appends invalidity information to invalidity_reason_lst as needed.
         '''
 
         # check 2 - each long-short pair must make sense
@@ -189,6 +184,7 @@ class DemuxConstructAlignment:
             self.valid = False
             return False
         else:
+            # final check to ensure that the 'index' is on the opposite side of the 'barcode'
             if idxes_orientation == barcodes_orientation:
                 self.valid = False
                 return False
@@ -270,8 +266,7 @@ class DemuxConstructAlignment:
                 self.valid = False
                 return False
             self.valid=True
-
-
+    
 class DemuxxedSample:
     '''
     Represents each individual sample with that has sequence data associated with it.

@@ -42,12 +42,12 @@ def main():
             # these three remove all reads which are missing elements, or have individual elements present
             DCalignment=DemuxConstructAlignment(seq_record, DC, aligner)
             DCalignment.align_all_ConstructElements()
-            DCalignment.check_all_ConstructElementAlignments_validity()
+            DCalignment.check_all_ConstructElementAlignments_validity() 
+            # if the individual elements are fine, check them collectively
             if (DCalignment.valid):
                 DCalignment.check_DemuxConstructAlignment_validity()
-            # there are several more checks we need to ensure validity, but its fine for the moment
-            #alignment.print_invalidity_reason_lst()
-
+            
+            # if all is good, trim the sequence, and then append it to the list.
             if (DCalignment.valid):
                 demux_alignment_lst.append(DCalignment)
 
