@@ -22,9 +22,10 @@ ONTddRADparse.py -f <input.fq.fz> -d <input_demux_construct_file.tsv> -e1 EcoRI 
 | `-h`, `--help` | `FALSE` | Flag | Print a help message and exit. |
 | `-f`, `--fastq` | `null` | String | Path to the input FASTQ file to be demultiplexed. Mandatory. |
 | `-d`, `--demux` | `null` | String | Path to the demux construct TSV file. Mandatory. |
+| `-b`, `--buffer` | `0` | Int | The integer number of base pairs outside of the long element the short element can align to. Defaults to 0 (internal matching only). Mandatory. |
 | `-p`, `--prefix` | `ONTddRADparse_out` | String | Output directory prefix. Demultiplexed FASTQ files will be written to this directory. |
 | `-e1`, `--enzyme1` | `null` | String | The restriction enzyme associated with the index. Must be a valid BioPython.Restriction enzyme name. Mandatory. |
-| `-e2`, `--enzyme2` | `null` | String | The restriction enzyme associated with the barcode. Must be a valid BioPython.Restriction enzyme name. Must differ from `--enzyme1`. Mandatory. |
+| `-e2`, `--enzyme2` | `null` | String | The restriction enzyme associated with the barcode. Must be a valid BioPython.Restriction enzyme name. Must differ from `--enzyme1`. |
 | `-fa`, `--fuzzy_aln_percent` | `0.9` | Float | The minimum percent identity (0.0-1.0) needed to fuzzy-match a full index or barcode to a sequence. Used for `index_full` and `barcode_full` alignments. |
 | `-ea`, `--exact_aln_percent` | `1.0` | Float | The minimum percent identity (0.0-1.0) needed to exact-match a short index or barcode to a sequence. Used for `index` and `barcode` alignments. |
 
@@ -97,7 +98,8 @@ These alignments should make sense relative to one another.
 We score a `DemuxConstructAlignment` as **invalid** (and remove the read) under the following circumstances:
 
 - A `ConstructElement` does not align
-- A `ConstructElement` aligns in both orientations
+- A (big) `ConstructElement` aligns in both orientations
+  - We allow small `ConstructElements` to align in both directions, because this can happen by chance. 
 - Orientations of `ConstructElementPairs` do not make sense relative to each other
     - See table below
 
@@ -114,13 +116,9 @@ We score a `DemuxConstructAlignment` as **invalid** (and remove the read) under 
 
 ### 2. Remove Reads where short `ConstructElements` are not found near long ones
 
-The 6-9 bp ConstructElements are quite short and can show off-target binding.
-We want to use the coordinates of the long sequences to 'anchor' the short barcode hits.
-
-The short barcode hits should be close to the end or beginning of the long barcode hits.
-We get the distance they can be away from the `Boundary` indices by taking a percentage of the read length (10%?).
-
-If the short barcode hit isn't in that range, we declare the Read invalid
+Short `ConstructElements` canonically fit inside of their long counterparts.
+The user can additionally define a 'buffer zone' of $n$ base pairs off either side of the long barcode with the `-b` argument.
+Reads where both of the shot `ConstructElements` are not found within the buff zone of the long `ConstructElements`.
 
 @Xander please help by telling me if that makes sense from a wet-lab perspective
 

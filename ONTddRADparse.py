@@ -12,6 +12,7 @@ def main():
     parser = ArgumentParser(description="Takes a set of ONT-primer prefixes dddRADseq files and a set of barcodes and demultiplexes them.")
     parser.add_argument('-f','--fastq', help='Path to the input fq file. Required.', type=str, required=True)
     parser.add_argument('-d','--demux', help='Path to the demux file. Required.', type=str, required=True)
+    parser.add_argument('-b','--buffer', help='The integer number of base pairs outside of the long element the short element can align to. Defaults to 0 (internal matching only).', type=int, default=0)
     parser.add_argument('-p','--prefix', help='Output prefix. Defaults to \'ONTddRADparse_out\' if not set.', type=str, default=f'{default_prefix}_out')
     parser.add_argument('-e1','--enzyme1', help='The restriction enzyme associated with the index. Valid choices come from BioPython.Restriction', type=str)
     parser.add_argument('-e2','--enzyme2', help='The restriction enzyme associated with the barcode. Valid choices come from BioPython.Restriction', type=str)
@@ -27,7 +28,7 @@ def main():
     ### PARSE IN FILES
     seq_record_lst = parse_seqfile(args.fastq, 'fastq')
     demux_df = parse_demux_file(args.demux)
-    demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(demux_df, args.fuzzy_aln_percent, args.exact_aln_percent)
+    demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(demux_df, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
     # fixme - ensure that all DemuxConstruct.sample_ids in this list are unique
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
@@ -37,11 +38,14 @@ def main():
     demux_alignment_lst = []
     for seq_record in seq_record_lst:
         for demux_construct in demux_construct_list:
-            alignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
-            alignment.align_all_ConstructElements()
+            DCalignment=DemuxConstructAlignment(seq_record, demux_construct, aligner)
+            DCalignment.align_all_ConstructElements()
+            DCalignment.check_DemuxConstructAlignment_validity()
             # there are several more checks we need to ensure validity, but its fine for the moment
-            if (alignment.valid):
-                demux_alignment_lst.append(alignment)
+            #alignment.print_invalidity_reason_lst()
+
+            if (DCalignment.valid):
+                demux_alignment_lst.append(DCalignment)
 
 
 
