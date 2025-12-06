@@ -1,4 +1,6 @@
-__all__ = ["Boundary", "ConstructElement", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner"]
+from __future__ import annotations
+
+__all__ = ["Boundary", "ConstructElement", "ConstructElementPairAlignment", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner"]
 
 import gzip
 import subprocess
@@ -40,6 +42,111 @@ class Boundary:
         span_list=[span_start_idx, span_end_idx]
         return span_list
 
+class ConstructElementPairAlignment:
+    '''
+    Two complementary `ConstructElements` - one long, and one short. In the context of ONTddRADparser, they consist of:
+        - `index` and `index_full`
+        - `barcode` and `barcode_full`
+    The short one is around 6-9 bp, and is allowed to exist more than once in the SeqRecord.
+    The long one should only be found once - otherwise, it is a concatamer.
+    '''
+    aligned = '' # can be ['F_align','R_align','invalid_align']
+    short_in_long = '' # can be T or F
+    valid = False
+
+    def __init__(self, CEA_long: 'ConstructElementAlignment', CEA_short: 'ConstructElementAlignment'):
+        self.CEA_long = CEA_long
+        self.CEA_short = CEA_short
+    
+    def __str__(self):
+        str = f'''
+        seq\ttype\taln_percent\tbuffer
+        {self.type}\t{self.aln_percent}\t{self.seq}\t{self.buffer}
+        '''
+        return(str)   
+
+    def check_ConstructElementPairAlignment_validity(self):
+        '''
+        Checks if the CEPA is valid, based on self.aligned and self.short_in_long, and updates the self.valid tag.
+        '''
+        if (self.get_paired_orientation()):
+            if (self.check_short_in_long()):
+                self.valid = True
+                return True
+        self.valid = False
+        return False
+
+
+    def check_short_in_long(self):
+        '''
+        Performs position checking to ensure that CEA_short is inside CEA_long.
+        '''
+        if self.aligned == '':
+            self.valid = self.get_paired_orientation()
+
+        # now we need to check that the short element is found inside of the long element
+        if self.valid == 'F_align':
+            short_span=self.CEA_short.FBoundary.get_span()
+            long_span=self.CEA_long.FBoundary.get_span()
+            if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
+                self.short_in_long = False
+                return False
+
+        else: # now we need to check that the short element is found inside of the long element
+            short_span=self.CEA_short.RBoundary.get_span()
+            long_span=self.CEA_long.RBoundary.get_span()
+            if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
+                self.short_in_long = False
+                return False
+        self.short_in_long = True
+        return True
+
+    def get_paired_orientation(self):
+        '''
+        Determines whether the pair is `F_align`, `R_align`, or `invalid_align`, and updates `self.aligned`.
+        '''
+        long_F_aligned = (not np.isnan(self.CEA_long.FBoundary.start_idx) and not np.isnan(self.CEA_long.FBoundary.end_idx))
+        long_R_aligned = (not np.isnan(self.CEA_long.RBoundary.start_idx) and not np.isnan(self.CEA_long.RBoundary.end_idx))
+
+        # We expect exactly one aligned boundary in the long element
+        if long_F_aligned == long_R_aligned:
+            # Either none or both aligned → invalid pairing
+            self.aligned = 'invalid_align'
+            return False
+
+        # Make checks for alignment and orientation of long+short elements        
+        if long_F_aligned:
+            # Long uses FBoundary; require short to also use FBoundary with same orientation
+            short_F_aligned = (not np.isnan(self.CEA_short.FBoundary.start_idx)and not np.isnan(self.CEA_short.FBoundary.end_idx))  
+            if not short_F_aligned:
+                self.aligned = 'invalid_align'
+                return False
+
+        # do the same thing as above, except on the RBoundary
+        else:
+            short_R_aligned = (not np.isnan(self.CEA_short.RBoundary.start_idx) and not np.isnan(self.CEA_short.RBoundary.end_idx))
+            if not short_R_aligned:
+                self.aligned = 'invalid_align'
+                return False
+
+        # Assuming all other checks are passed, return the orientation of both of the values:
+        if (long_F_aligned):
+            self.aligned = 'F_align'
+            return True
+        else:
+            self.aligned = 'R_align'
+            return True
+
+
+
+
+
+
+
+
+
+
+
 class ConstructElement:
     '''
     Individual elements of a larger DNA construct, implemented as a Seq object with metadata.
@@ -70,7 +177,7 @@ class ConstructElementAlignment:
 
     valid = False
 
-    def __init__(self, SeqRecord, ConstructElement, aligner):
+    def __init__(self, SeqRecord: 'SeqRecord', ConstructElement: 'ConstructElement', aligner):
         self.SeqRecord = SeqRecord
         self.ConstructElement = ConstructElement
         self.aligner = aligner
@@ -169,7 +276,6 @@ class DemuxConstructAlignment:
         '''
         Checks if the DemuxConstructAlignment violates any of the following conditions, and updates 'valid' as necessary.
         '''
-
         # check 2 - each long-short pair must make sense
         # index-index_full and barcode-barcode_full should have consistent orientations
         idxes_orientation = self.find_long_shortDemuxConstructAlignment_orientation(
@@ -330,7 +436,6 @@ class FastqFile:
         else:
             with gzip.open(self.filepath, "wt") as handle:
                 SeqIO.write(self.SeqRecord_lst, handle, self.format)
-
 
 
 # functions
