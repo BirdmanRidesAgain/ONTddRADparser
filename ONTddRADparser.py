@@ -35,21 +35,23 @@ def main():
     aligner=init_aligner()
 
     # generate all-against-all alignments
-    demux_alignment_lst = []
+    valid_DCA_lst = []
     for seq_record in seq_record_lst:
         for DC in demux_construct_list:
 
             # these three remove all reads which are missing elements, or have individual elements present
-            DCalignment=DemuxConstructAlignment(seq_record, DC, aligner)
-            DCalignment.align_all_ConstructElements()
-            DCalignment.check_all_ConstructElementAlignments_validity() 
+            DCA=DemuxConstructAlignment(seq_record, DC, aligner)
+            DCA.align_all_ConstructElements()
+            DCA.check_all_ConstructElementAlignments_validity() 
             # if the individual elements are fine, check them collectively
-            if (DCalignment.valid):
-                DCalignment.check_DemuxConstructAlignment_validity()
+            if (DCA.valid):
+                DCA.check_all_ConstructElementAlignmentPairs_validity()
+                if (DCA.valid):
+                    DCA.check_DemuxConstructAlignment_validity()
             
-            # if all is good, trim the sequence, and then append it to the list.
-            if (DCalignment.valid):
-                demux_alignment_lst.append(DCalignment)
+            # if de DCA is still valid, append the seq to the list.
+            if (DCA.valid):
+                valid_DCA_lst.append(DCA)
 
 
 
@@ -62,7 +64,7 @@ def main():
         demuxxed_sample_dict[sample_id] = demuxxed_sample
     
     # Scan through all DemuxConstructAlignment objects and gather SeqRecords
-    for alignment in demux_alignment_lst:
+    for alignment in valid_DCA_lst:
         sample_id = alignment.DemuxConstruct.sample_id
         if sample_id in demuxxed_sample_dict:
             demuxxed_sample_dict[sample_id].gather_SeqRecords_from_DemuxConstructAlignment(alignment)
@@ -72,11 +74,6 @@ def main():
     for demuxxed_sample in demuxxed_sample_lst:
         fastq_file = demuxxed_sample.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
         fastq_file.write_FastqFile_to_outdir()
-
-    ### SCAN FOR CONCATAMERS
-
-
-
 
 
 # If this is being imported
