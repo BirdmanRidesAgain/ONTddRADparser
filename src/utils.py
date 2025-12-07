@@ -67,12 +67,18 @@ def parse_demux_file(filepath):
     return df
 
 def convert_demux_df_to_DemuxConstruct_lst(df, fuzzy_aln_percent, exact_aln_percent, buffer):
-    construct_lst = []
-    for index, row in df.iterrows():
-        i=DemuxConstruct(row.iloc[0],row.iloc[1],row.iloc[2],row.iloc[3],row.iloc[4], fuzzy_aln_percent, exact_aln_percent, buffer)
-        construct_lst.append(i)    
-    return(construct_lst)
+    DC_lst = []
 
+    for index, row in df.iterrows():
+        sample_id = row.iloc[0]
+        index_full_CE=ConstructElement(row.iloc[1], 'long', fuzzy_aln_percent, buffer)
+        index_CE=ConstructElement(row.iloc[2], 'short', exact_aln_percent)
+        barcode_full_CE=ConstructElement(row.iloc[3], 'long', fuzzy_aln_percent, buffer)
+        barcode_CE=ConstructElement(row.iloc[4], 'short', exact_aln_percent)
+
+        DC=DemuxConstruct(sample_id, index_full_CE, index_CE, barcode_full_CE, barcode_CE)
+        DC_lst.append(DC)    
+    return(DC_lst)
 
 def initialize_df(num_rows, column_lst):
     '''

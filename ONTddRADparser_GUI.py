@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import subprocess
 
 st.markdown("# :red[ON]:orange[Td]:yellow[dR]:green[AD]:blue[pa]:violet[rs]:gray[er]")
 st.subheader("A GUI frontend for [ONTddRADparser](https://github.com/BirdmanRidesAgain/ONTddRADparser)")
@@ -140,13 +141,43 @@ def get_error_message_for_touched_fields():
 is_valid = check_all_params_valid()
 error_message = get_error_message_for_touched_fields()
 
+def run_ONTddRADparser():
+    '''Builds and runs the command to run ONTddRADparser locally from user inputs.'''
+    fasta = st.session_state.get('fasta', '')
+    demux = st.session_state.get('demux', '')
+    buffer = st.session_state.get('buffer', '')
+    fuzzy_aln_percent = st.session_state.get('fuzzy_aln_percent', '')
+    exact_aln_percent = st.session_state.get('exact_aln_percent', '')
+    
+    command = [
+        'python3', './ONTddRADparser.py',
+        '-f', fasta,
+        '-d', demux,
+        '-b', buffer,
+        '-e1', 'EcoRI',
+        '-e2', 'SbfI',
+        '-fa', fuzzy_aln_percent,
+        '-ea', exact_aln_percent
+    ]
+    
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        st.success("Analysis completed successfully!")
+        if result.stdout:
+            st.text(result.stdout)
+    except subprocess.CalledProcessError as e:
+        st.error(f"Error running ONTddRADparser: {e}")
+        if e.stderr:
+            st.text(e.stderr)
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
+
 # Add button at the bottom
 st.markdown("---")  # Add a separator
 if is_valid:
-    st.button("Run Analysis", type="primary", use_container_width=True)
+    if st.button("Run Analysis", type="primary", use_container_width=True):
+        run_ONTddRADparser()
 else:
     st.button("Run Analysis", disabled=True, use_container_width=True)
     if error_message:
         st.error(error_message)
-
-
