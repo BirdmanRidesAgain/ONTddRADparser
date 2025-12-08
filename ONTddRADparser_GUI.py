@@ -1,13 +1,24 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
+import time
 import subprocess
 
-st.markdown("# :red[ON]:orange[Td]:yellow[dR]:green[AD]:blue[pa]:violet[rs]:gray[er]")
+with st.sidebar:
+    with st.echo():
+        st.write("This code will be printed to the sidebar.")
+
+    with st.spinner("Loading..."):
+        time.sleep(5)
+    st.success("Done!")
+
+st.markdown("# :red[ON]:orange[Td]:yellow[dR]:green[AD]:blue[pa]:violet[rs]:gray[er] 🌈")
 st.subheader("A GUI frontend for [ONTddRADparser](https://github.com/BirdmanRidesAgain/ONTddRADparser)")
 
 
-# Sidebar tutorial
+st.set_page_config(
+    page_title="ONTddRADparser",
+    page_icon=":rainbow:",
+)
+
 st.markdown('## Set parameters')
 
 # Initialize touched fields tracking
@@ -162,7 +173,7 @@ def run_ONTddRADparser():
     
     try:
         result = subprocess.run(command, capture_output=True, text=True, check=True)
-        st.success("Analysis completed successfully!")
+        st.success("ONTddRADparser completed successfully!", icon="✅")
         if result.stdout:
             st.text(result.stdout)
     except subprocess.CalledProcessError as e:
