@@ -208,7 +208,7 @@ class ConstructElementAlignmentPair:
                 return False
 
         # Assuming all other checks are passed, return the orientation of both of the values:
-        if (long_CEA_orientation_F):
+        if long_CEA_orientation_F:
             self.orientation = 'F'
             return True
         else:
@@ -252,15 +252,16 @@ class DemuxConstructAlignment:
         self.SeqRecord = SeqRecord
         self.DemuxConstruct = DemuxConstruct
 
-        index_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index_full, aligner)
-        index_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index, aligner)
-        barcode_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
-        barcode_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode, aligner)
-
-        self.index_CEAP = ConstructElementAlignmentPair(long_CEA=index_full_CEA, short_CEA=index_CEA)
-        self.barcode_CEAP = ConstructElementAlignmentPair(long_CEA=barcode_full_CEA, short_CEA=barcode_CEA)
+        self.index_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index_full, aligner)
+        self.index_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index, aligner)
+        self.barcode_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
+        self.barcode_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode, aligner)
 
         self.align_all_ConstructElements()
+
+        self.index_CEAP = ConstructElementAlignmentPair(long_CEA=self.index_full_CEA, short_CEA=self.index_CEA)
+        self.barcode_CEAP = ConstructElementAlignmentPair(long_CEA=self.barcode_full_CEA, short_CEA=self.barcode_CEA)
+
 
     def __str__(self):
 
@@ -272,7 +273,7 @@ class DemuxConstructAlignment:
         return(str)
 
     def align_all_ConstructElements(self):
-        CEAs = [self.index_CEAP.long_CEA, self.index_CEAP.short_CEA, self.barcode_CEAP.long_CEA, self.index_CEAP.short_CEA]
+        CEAs = [self.index_full_CEA, self.index_CEA, self.barcode_full_CEA, self.barcode_CEA]
         orientations = ['F', 'R']
         for CEA in CEAs:
             for orientation in orientations:
@@ -283,7 +284,7 @@ class DemuxConstructAlignment:
         Wrapper around ConstructElementAlignment.check_ConstructElementAlignment_validity().
         Ports the logic into the main script so we can weed out SeqQbjects that fail the first line of validation.
         '''
-        CEAs = [self.index_CEAP.long_CEA, self.index_CEAP.short_CEA, self.barcode_CEAP.long_CEA, self.index_CEAP.short_CEA]
+        CEAs = [self.index_full_CEA, self.index_CEA, self.barcode_full_CEA, self.barcode_CEA]
         for CEA in CEAs:
             CEA.check_ConstructElementAlignment_validity()
             if not CEA.valid:

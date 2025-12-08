@@ -43,9 +43,9 @@ def main():
             DCA=DemuxConstructAlignment(seq_record, DC, aligner)
             DCA.check_all_ConstructElementAlignments_validity() 
             # if the individual elements are fine, check them collectively
-            if (DCA.valid):
+            if DCA.valid:
                 DCA.check_all_ConstructElementAlignmentPairs_validity()
-                if (DCA.valid):
+                if DCA.valid:
                     DCA.check_DemuxConstructAlignment_validity()
             
             # if de DCA is still valid, append the seq to the list.
