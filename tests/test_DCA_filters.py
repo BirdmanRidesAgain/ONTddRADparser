@@ -31,21 +31,25 @@ def seq_stem():
 @pytest.fixture
 def index_full():
     index_full=Seq('CAAGCAGAAGACGGCATACGAGATCGTGATGTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTAATT')
+    index_full_rev=Seq('AATTAGATCGGAAGAGCACACGTCTGAACTCCAGTCACATCACGATCTCGTATGCCGTCTTCTGCTTG')
     yield index_full
 
 @pytest.fixture
 def barcode_full():
     barcode_full=Seq('AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCTACACCTTGCA')
+    barcode_full_rev=Seq('TGCAAGGTGTAGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT')
     yield barcode_full
 
 @pytest.fixture
 def index():
     index=Seq('CGTGAT')
+    index_rev=Seq('ATCACG')
     yield index
 
 @pytest.fixture
 def barcode():
     barcode=Seq('ACACCT')
+    barcode_rev=Seq('AGGTGT')
     yield barcode
 
 @pytest.fixture
@@ -98,19 +102,16 @@ def test_barcode_barcode_full_pair_is_valid(barcode, barcode_full, aligner):
     assert orientationF == [58,64] and orientationR == [4,10]
 
 def test_valid_seq_index_orientationF_passes_CEA_checks(valid_DCA_indexF):
-    valid_DCA_indexF.align_all_ConstructElements()
     valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
     assert valid_DCA_indexF.valid
 
 def test_valid_seq_index_orientationF_CEAP_check_finds_orientationF(valid_DCA_indexF):
-    valid_DCA_indexF.align_all_ConstructElements()
     valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
     assert valid_DCA_indexF.index_CEAP.orientation == 'F' #and valid_DCA_indexF.barcode_CEAP.orientation == 'R'
 
 
 def test_valid_seq_index_orientationF_passes_CEA_and_CEAP_checks(valid_DCA_indexF):
-    valid_DCA_indexF.align_all_ConstructElements()
     valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
     assert valid_DCA_indexF.valid

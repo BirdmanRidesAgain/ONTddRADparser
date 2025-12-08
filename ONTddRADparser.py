@@ -41,7 +41,6 @@ def main():
 
             # these three remove all reads which are missing elements, or have individual elements present
             DCA=DemuxConstructAlignment(seq_record, DC, aligner)
-            DCA.align_all_ConstructElements()
             DCA.check_all_ConstructElementAlignments_validity() 
             # if the individual elements are fine, check them collectively
             if (DCA.valid):

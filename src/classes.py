@@ -187,7 +187,7 @@ class ConstructElementAlignmentPair:
         long_CEA_orientation_R = (not np.isnan(self.long_CEA.RBoundary.start_idx) and not np.isnan(self.long_CEA.RBoundary.end_idx))
 
         # We expect exactly one aligned boundary in the long element
-        if long_CEA_orientation_F == long_CEA_orientation_F:
+        if long_CEA_orientation_F == long_CEA_orientation_R:
             # Either none or both aligned → invalid pairing
             self.orientation = 'invalid'
             return False
@@ -257,8 +257,10 @@ class DemuxConstructAlignment:
         barcode_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
         barcode_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode, aligner)
 
-        self.index_CEAP = ConstructElementAlignmentPair(index_CEA, index_full_CEA)
-        self.barcode_CEAP = ConstructElementAlignmentPair(barcode_CEA, barcode_full_CEA)
+        self.index_CEAP = ConstructElementAlignmentPair(long_CEA=index_full_CEA, short_CEA=index_CEA)
+        self.barcode_CEAP = ConstructElementAlignmentPair(long_CEA=barcode_full_CEA, short_CEA=barcode_CEA)
+
+        self.align_all_ConstructElements()
 
     def __str__(self):
 
@@ -394,7 +396,7 @@ def align_target(seq: Seq, subseq: Seq, aligner: Align.PairwiseAligner, aln_perc
     min_aln_score=len(subseq)*aln_percent
 
     aln=aligner.align(seq, subseq)
-    
+
     if (aln.score < min_aln_score):
         return([np.nan, np.nan])
     else:
