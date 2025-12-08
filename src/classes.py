@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-__all__ = ["Boundary", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner"]
+__all__ = ["Boundary", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target","create_sample_data"]
 
 import gzip
 import subprocess
@@ -89,10 +89,11 @@ class ConstructElementAlignment:
 
     def align_ConstructElement(self, orientation):
         '''Aligns the subset to the seq in either the 5->3 ('f') or 3->5 ('r') direction.'''
-        aln = align_target(self.SeqRecord.seq, self.ConstructElement.seq, self.aligner, orientation, self.ConstructElement.aln_percent)
         if (orientation == 'f' or orientation == 'F'):
+            aln = align_target(self.SeqRecord.seq, self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
             self.FBoundary=Boundary(self.ConstructElement.length, orientation, aln[0], aln[1], self.ConstructElement.buffer)
-        elif (orientation == 'r' or orientation == 'R'):    
+        elif (orientation == 'r' or orientation == 'R'):
+            aln = align_target(self.SeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
             self.RBoundary=Boundary(self.ConstructElement.length, orientation, aln[0], aln[1], self.ConstructElement.buffer)
         else:
             raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f,F', 'r,R'.\n\tActual value: {orientation}")
@@ -127,8 +128,6 @@ class ConstructElementAlignmentPair:
     The short one is around 6-9 bp, and is allowed to exist more than once in the SeqRecord.
     The long one should only be found once - otherwise, it is a concatamer.
     '''
-
-
     def __init__(self, CEA_long: 'ConstructElementAlignment', CEA_short: 'ConstructElementAlignment'):
         if CEA_long.SeqRecord.id != CEA_short.SeqRecord.id:
             ValueError("ConstructElementAlignments must be based on the same sequence.")
@@ -384,23 +383,17 @@ class FastqFile:
                 SeqIO.write(self.SeqRecord_lst, handle, self.format)
 
 # functions
-def align_target(seq, subseq, aligner, orientation, aln_percent):
+def align_target(seq: Seq, subseq: Seq, aligner: Align.PairwiseAligner, aln_percent: float = 1):
     '''
     Helper function for `check_seq_for_full_index` and others.
     Takes a Bio.Record object and a Bio.Seq object, and aligns them.
     Returns a tuple of the start and end indices of 'subseq' to 'seq'.
     Returns a list of two indices which can be formatted to a Boundary object.
-    
     '''
     aligner.target_end_gap_score = aligner.query_end_gap_score = 0.0
     min_aln_score=len(subseq)*aln_percent
 
-    if (orientation=='F'):
-        aln=aligner.align(seq, subseq)
-    elif (orientation=='R'):
-        aln=aligner.align(seq.reverse_complement(),subseq)
-    else:
-        raise ValueError(f"Ambiguous alignment orientation.\n\tAccepted values: 'f,F', 'r,R'.\n\tActual value: {orientation}")
+    aln=aligner.align(seq, subseq)
     
     if (aln.score < min_aln_score):
         return([np.nan, np.nan])
@@ -417,18 +410,18 @@ def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
     aligner.extend_gap_score = extend_gap_score
     return(aligner)
 
-def create_sample_data(seq_name: str, input_seq: str, index_full: str, index: str, barcode: str, barcode_full: str):
+def create_sample_data(seq_name: Seq, input_seq: Seq, index_full: Seq, index: Seq, barcode: Seq, barcode_full: Seq):
     '''
     Creates a full contingent of data structures from a single set of complete inputs.
     Inputs should be given as strings.
     '''
-    testSeqRec = SeqRecord(Seq(input_seq),id=seq_name)
+    testSeqRec = SeqRecord(input_seq,id=seq_name)
     testSeqRec.letter_annotations["phred_quality"] = [40] * len(testSeqRec.seq) # added to make it a valid fastq
 
-    index_full=Seq(index_full)
-    index=Seq(index)
-    barcode_full=Seq(barcode_full)
-    barcode=Seq(barcode)
+    index_full=index_full
+    index=index
+    barcode_full=barcode_full
+    barcode=barcode
 
     aligner=init_aligner()
     exact_aln_percent = 1
