@@ -128,12 +128,12 @@ class ConstructElementAlignmentPair:
     The short one is around 6-9 bp, and is allowed to exist more than once in the SeqRecord.
     The long one should only be found once - otherwise, it is a concatamer.
     '''
-    def __init__(self, CEA_long: 'ConstructElementAlignment', CEA_short: 'ConstructElementAlignment'):
-        if CEA_long.SeqRecord.id != CEA_short.SeqRecord.id:
+    def __init__(self, long_CEA: 'ConstructElementAlignment', short_CEA: 'ConstructElementAlignment'):
+        if long_CEA.SeqRecord.id != short_CEA.SeqRecord.id:
             ValueError("ConstructElementAlignments must be based on the same sequence.")
         self.valid = False
-        self.CEA_long = CEA_long
-        self.CEA_short = CEA_short
+        self.long_CEA = long_CEA
+        self.short_CEA = short_CEA
         self.orientation = '' # can be ['F','R','invalid']
         self.short_in_long = '' # can be T or F
     
@@ -157,22 +157,22 @@ class ConstructElementAlignmentPair:
 
     def check_short_in_long(self):
         '''
-        Performs position checking to ensure that CEA_short is inside CEA_long.
+        Performs position checking to ensure that short_CEA is inside long_CEA.
         '''
         if self.orientation == '':
             self.valid = self.get_paired_orientation()
 
         # now we need to check that the short element is found inside of the long element
         if self.orientation == 'F':
-            short_span=self.CEA_short.FBoundary.get_span()
-            long_span=self.CEA_long.FBoundary.get_span()
+            short_span=self.short_CEA.FBoundary.get_span()
+            long_span=self.long_CEA.FBoundary.get_span()
             if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
                 self.short_in_long = False
                 return False
 
         else: # now we need to check that the short element is found inside of the long element
-            short_span=self.CEA_short.RBoundary.get_span()
-            long_span=self.CEA_long.RBoundary.get_span()
+            short_span=self.short_CEA.RBoundary.get_span()
+            long_span=self.long_CEA.RBoundary.get_span()
             if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
                 self.short_in_long = False
                 return False
@@ -183,32 +183,32 @@ class ConstructElementAlignmentPair:
         '''
         Determines whether the pair is `F`, `R`, or `invalid`, and updates `self.orientation`.
         '''
-        CEA_long_orientation_F = (not np.isnan(self.CEA_long.FBoundary.start_idx) and not np.isnan(self.CEA_long.FBoundary.end_idx))
-        CEA_long_orientation_R = (not np.isnan(self.CEA_long.RBoundary.start_idx) and not np.isnan(self.CEA_long.RBoundary.end_idx))
+        long_CEA_orientation_F = (not np.isnan(self.long_CEA.FBoundary.start_idx) and not np.isnan(self.long_CEA.FBoundary.end_idx))
+        long_CEA_orientation_R = (not np.isnan(self.long_CEA.RBoundary.start_idx) and not np.isnan(self.long_CEA.RBoundary.end_idx))
 
         # We expect exactly one aligned boundary in the long element
-        if CEA_long_orientation_F == CEA_long_orientation_F:
+        if long_CEA_orientation_F == long_CEA_orientation_F:
             # Either none or both aligned → invalid pairing
             self.orientation = 'invalid'
             return False
 
         # Make checks for alignment and orientation of long+short elements        
-        if CEA_long_orientation_F:
+        if long_CEA_orientation_F:
             # Long uses FBoundary; require short to also use FBoundary with same orientation
-            CEA_short_orientation_F = (not np.isnan(self.CEA_short.FBoundary.start_idx)and not np.isnan(self.CEA_short.FBoundary.end_idx))  
-            if not CEA_short_orientation_F:
+            short_CEA_orientation_F = (not np.isnan(self.short_CEA.FBoundary.start_idx)and not np.isnan(self.short_CEA.FBoundary.end_idx))  
+            if not short_CEA_orientation_F:
                 self.orientation = 'invalid'
                 return False
 
         # do the same thing as above, except on the RBoundary
         else:
-            CEA_short_orientation_R = (not np.isnan(self.CEA_short.RBoundary.start_idx) and not np.isnan(self.CEA_short.RBoundary.end_idx))
-            if not CEA_short_orientation_R:
+            short_CEA_orientation_R = (not np.isnan(self.short_CEA.RBoundary.start_idx) and not np.isnan(self.short_CEA.RBoundary.end_idx))
+            if not short_CEA_orientation_R:
                 self.orientation = 'invalid'
                 return False
 
         # Assuming all other checks are passed, return the orientation of both of the values:
-        if (CEA_long_orientation_F):
+        if (long_CEA_orientation_F):
             self.orientation = 'F'
             return True
         else:
@@ -252,25 +252,25 @@ class DemuxConstructAlignment:
         self.SeqRecord = SeqRecord
         self.DemuxConstruct = DemuxConstruct
 
-        index_full_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.index_full, aligner)
-        index_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.index, aligner)
-        barcode_full_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
-        barcode_aln=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode, aligner)
+        index_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index_full, aligner)
+        index_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index, aligner)
+        barcode_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
+        barcode_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode, aligner)
 
-        self.index_pair_aln = ConstructElementAlignmentPair(index_aln, index_full_aln)
-        self.barcode_pair_aln = ConstructElementAlignmentPair(barcode_aln, barcode_full_aln)
+        self.index_CEAP = ConstructElementAlignmentPair(index_CEA, index_full_CEA)
+        self.barcode_CEAP = ConstructElementAlignmentPair(barcode_CEA, barcode_full_CEA)
 
     def __str__(self):
 
         str = f'''
         SeqRecord\t{self.SeqRecord.id}
-        index_pair_aln\t{self.index_pair_aln}
-        barcode_pair_aln\t{self.barcode_pair_aln}
+        index_CEAP\t{self.index_CEAP}
+        barcode_CEAP\t{self.barcode_CEAP}
         '''
         return(str)
 
     def align_all_ConstructElements(self):
-        CEAs = [self.index_pair_aln.CEA_long, self.index_pair_aln.CEA_short, self.barcode_pair_aln.CEA_long, self.index_pair_aln.CEA_short]
+        CEAs = [self.index_CEAP.long_CEA, self.index_CEAP.short_CEA, self.barcode_CEAP.long_CEA, self.index_CEAP.short_CEA]
         orientations = ['F', 'R']
         for CEA in CEAs:
             for orientation in orientations:
@@ -281,7 +281,7 @@ class DemuxConstructAlignment:
         Wrapper around ConstructElementAlignment.check_ConstructElementAlignment_validity().
         Ports the logic into the main script so we can weed out SeqQbjects that fail the first line of validation.
         '''
-        CEAs = [self.index_pair_aln.CEA_long, self.index_pair_aln.CEA_short, self.barcode_pair_aln.CEA_long, self.index_pair_aln.CEA_short]
+        CEAs = [self.index_CEAP.long_CEA, self.index_CEAP.short_CEA, self.barcode_CEAP.long_CEA, self.index_CEAP.short_CEA]
         for CEA in CEAs:
             CEA.check_ConstructElementAlignment_validity()
             if not CEA.valid:
@@ -294,7 +294,7 @@ class DemuxConstructAlignment:
         Wrapper around ConstructElementPairAlignment.check_ConstructElementPairAlignment_validity().
         Assumes that all ConstructElements are valid.
         '''
-        CEAPs = [self.index_pair_aln, self.barcode_pair_aln]
+        CEAPs = [self.index_CEAP, self.barcode_CEAP]
         for CEAP in CEAPs:
             CEAP.check_ConstructElementAlignmentPair_validity()
             if not CEAP.valid:
@@ -307,12 +307,12 @@ class DemuxConstructAlignment:
         Checks if there are any violations in the interaction of the two CEAPs and updates 'self.valid' as necessary.
         Barcode and index must have alternating orientations.
         '''
-        if self.index_pair_aln.orientation == '':
-            self.index_pair_aln.get_paired_orientation()
-        if self.barcode_pair_aln.orientation == '':
-            self.barcode_pair_aln.get_paired_orientation()
+        if self.index_CEAP.orientation == '':
+            self.index_CEAP.get_paired_orientation()
+        if self.barcode_CEAP.orientation == '':
+            self.barcode_CEAP.get_paired_orientation()
 
-        if self.index_pair_aln.orientation == self.barcode_pair_aln.orientation:
+        if self.index_CEAP.orientation == self.barcode_CEAP.orientation:
             self.valid = False
             return False
         self.valid = True
@@ -410,18 +410,18 @@ def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
     aligner.extend_gap_score = extend_gap_score
     return(aligner)
 
-def create_sample_data(seq_name: Seq, input_seq: Seq, index_full: Seq, index: Seq, barcode: Seq, barcode_full: Seq):
+def create_sample_data(seq_name, input_seq: Seq, index_full: Seq, index: Seq, barcode: Seq, barcode_full: Seq):
     '''
     Creates a full contingent of data structures from a single set of complete inputs.
     Inputs should be given as strings.
     '''
-    testSeqRec = SeqRecord(input_seq,id=seq_name)
+    testSeqRec = SeqRecord(input_seq, id=sseq_name)
     testSeqRec.letter_annotations["phred_quality"] = [40] * len(testSeqRec.seq) # added to make it a valid fastq
 
-    index_full=index_full
-    index=index
-    barcode_full=barcode_full
-    barcode=barcode
+    index_full=Seq(index_full)
+    index=Seq(index)
+    barcode_full=Seq(barcode_full)
+    barcode=Seq(barcode)
 
     aligner=init_aligner()
     exact_aln_percent = 1

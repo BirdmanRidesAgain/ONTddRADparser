@@ -11,9 +11,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 
-def test_pytest_is_working():
-    """Basic test to verify pytest is functioning."""
-    assert True
+#def test_pytest_is_working():
+#    """Basic test to verify pytest is functioning."""
+#    assert True
 
 
 def test_python_version():
