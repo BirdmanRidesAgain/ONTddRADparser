@@ -288,7 +288,6 @@ class DemuxConstructAlignment:
         self.index_CEAP = ConstructElementAlignmentPair(long_CEA=self.index_full_CEA, short_CEA=self.index_CEA)
         self.barcode_CEAP = ConstructElementAlignmentPair(long_CEA=self.barcode_full_CEA, short_CEA=self.barcode_CEA)
 
-
     def __str__(self):
 
         str = f'''
@@ -353,6 +352,18 @@ class DemuxConstructAlignment:
             self.valid = False
             return False
         self.valid = True
+        return True
+
+    def trim_ConstructElements_from_SeqRecord(self):
+        '''
+        Use the coordinates from the long CEAs to remove them from the SeqRecord.
+        '''
+        # psuedocode
+        # get orientation of index_CEAP and barcode_CEAP.
+        # if forward, split the SeqRecord into two separate things and then add them together.
+            # include edge case where the long CEA is on the edge of a sequence
+        # edit the seqrecord, leave everything else unchanged.
+        self.SeqRecord
         return True
 
 class DemuxxedSample:

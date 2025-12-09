@@ -27,17 +27,20 @@ def main():
 
     ### PARSE IN FILES
     seq_record_lst = parse_seqfile(args.fastq, 'fastq')
-    demux_df = parse_demux_file(args.demux)
-    demux_construct_list = convert_demux_df_to_DemuxConstruct_lst(demux_df, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
+    Demux_df = parse_demux_file(args.demux)
+    DC_lst = convert_demux_df_to_DemuxConstruct_lst(Demux_df, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
     # fixme - ensure that all DemuxConstruct.sample_ids in this list are unique
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
     aligner=init_aligner()
 
-    # generate all-against-all alignments
+    # init empty lists to keep track of fates of various 
+    seq_record_fate_lst = []
+
+    # Align and validate ConstructElements to SeqRecords
     valid_DCA_lst = []
     for seq_record in seq_record_lst:
-        for DC in demux_construct_list:
+        for DC in DC_lst:
 
             # these three remove all reads which are missing elements, or have individual elements present
             DCA=DemuxConstructAlignment(seq_record, DC, aligner)
@@ -50,30 +53,33 @@ def main():
             for i in filter_lst:
                 getattr(DCA, i)()
                 if not DCA.valid:
+                    seq_record_fate_lst.append(['NA', seq_record.id, i])
                     break
+            # trim DCA I guess 
             if DCA.valid:
+                seq_record_fate_lst.append([DC.sample_id, seq_record.id, 'all_checks_valid'])
                 valid_DCA_lst.append(DCA)
 
-
-
     # Create one DemuxxedSample for each unique sample_id
-    demuxxed_sample_lst = []
-    demuxxed_sample_dict = {}
-    for sample_id in demux_df['sample_id'].unique():
-        demuxxed_sample = DemuxxedSample(sample_id)
-        demuxxed_sample_lst.append(demuxxed_sample)
-        demuxxed_sample_dict[sample_id] = demuxxed_sample
-    
+    DS_lst = []
+    DS_dict = {}
+    for sample_id in Demux_df['sample_id'].unique():
+        DS = DemuxxedSample(sample_id)
+        DS_lst.append(DS)
+        DS_dict[sample_id] = DS
+
     # Scan through all DemuxConstructAlignment objects and gather SeqRecords
-    for alignment in valid_DCA_lst:
-        sample_id = alignment.DemuxConstruct.sample_id
-        if sample_id in demuxxed_sample_dict:
-            demuxxed_sample_dict[sample_id].gather_SeqRecords_from_DemuxConstructAlignment(alignment)
+    for DCA in valid_DCA_lst:
+        sample_id = DCA.DemuxConstruct.sample_id
+        if sample_id in DS_dict:
+            DS_dict[sample_id].gather_SeqRecords_from_DemuxConstructAlignment(DCA)
+
+    plot_SeqRecordFates(seq_record_fate_lst)
 
     # Create output directory and write FastqFiles for each demuxxed sample
     outdir = make_outdir(args.prefix)
-    for demuxxed_sample in demuxxed_sample_lst:
-        fastq_file = demuxxed_sample.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
+    for DS in DS_lst:
+        fastq_file = DS.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
         fastq_file.write_FastqFile_to_outdir()
 
 
