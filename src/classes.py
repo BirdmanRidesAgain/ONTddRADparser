@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from altair import Orient
-
-__all__ = ["Boundary", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target","create_sample_data"]
+__all__ = ["Boundary", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target"]
 
 import gzip
 import subprocess
@@ -93,13 +91,13 @@ class ConstructElementAlignment:
     '''
 
     def __init__(self, SeqRecord: 'SeqRecord', ConstructElement: 'ConstructElement', aligner):
-        self.valid = False
         self.SeqRecord = SeqRecord
         self.ConstructElement = ConstructElement
         self.aligner = aligner
         self.orientation = []
         self.FBoundary = Boundary()
         self.RBoundary = Boundary()
+        self.valid = False
 
     def __str__(self):
         str=f'''
@@ -147,6 +145,26 @@ class ConstructElementAlignment:
         short_FR_orientation_valid = bool((self.ConstructElement.length == 'short') and ('F' in self.orientation) and ('R' in self.orientation))
 
         self.valid = xor_valid or short_FR_orientation_valid
+        return True
+
+    def check_ConstructElementAlignment_concatamer_validity(self):
+        '''
+        Checks for concatamers in binding in cis to each other.
+        Concatamers resulting from the same seq binding in trans are already removed by checkConstructElementAlignment_validity.
+        '''
+        self.aligner.target_end_gap_score = self.aligner.query_end_gap_score = 0.0
+        min_aln_score = len(self.ConstructElement.seq)* self.ConstructElement.aln_percent
+
+        if ('F' in self.orientation):
+            aln=self.aligner.align(self.SeqRecord.seq, self.ConstructElement.seq)
+        elif ('R' in self.orientation):
+            aln=self.aligner.align(self.SeqRecord.seq.reverse_complement(), self.ConstructElement.seq)
+        
+        if len(aln)>1:
+            if aln.score >= min_aln_score:
+                self.valid = False
+                return False
+        self.valid=True
         return True
 
 class ConstructElementAlignmentPair:
@@ -222,7 +240,6 @@ class ConstructElementAlignmentPair:
                 return True
         self.valid = False
         return False
-
 
 class DemuxConstruct:
     '''
@@ -301,7 +318,7 @@ class DemuxConstructAlignment:
 
     def check_all_ConstructElementAlignments_concatamer_validity(self):
         '''
-        Checks validated CEs for concatamers
+        Checks validated CEAs for concatamers
         '''
         long_CEAs = [self.index_full_CEA, self.barcode_full_CEA]
         for long_CEA in long_CEAs:
@@ -332,7 +349,6 @@ class DemuxConstructAlignment:
         for i in [self.index_CEAP, self.barcode_CEAP]:
             if not i.orientation:
                 i.get_ConstructElementAlignmentPair_orientation()
-
         if self.index_CEAP.orientation == self.barcode_CEAP.orientation:
             self.valid = False
             return False
@@ -404,6 +420,15 @@ class FastqFile:
                 SeqIO.write(self.SeqRecord_lst, handle, self.format)
 
 # functions
+def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
+    # Generic aligner we'll initialize once
+    # We penalize opening gaps because our markers should theoretically be one group
+    aligner=Align.PairwiseAligner()
+    aligner.mode = 'local'
+    aligner.open_gap_score = open_gap_score
+    aligner.extend_gap_score = extend_gap_score
+    return(aligner)
+
 def align_target(seq: Seq, subseq: Seq, aligner: Align.PairwiseAligner, aln_percent: float = 1):
     '''
     Helper function for `check_seq_for_full_index` and others.
@@ -422,60 +447,6 @@ def align_target(seq: Seq, subseq: Seq, aligner: Align.PairwiseAligner, aln_perc
         aln_boundaries=(aln[0].aligned[0].flatten())
         return([min(aln_boundaries), max(aln_boundaries)])
 
-def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
-    # Generic aligner we'll initialize once
-    # We penalize opening gaps because our markers should theoretically be one group
-    aligner=Align.PairwiseAligner()
-    aligner.mode = 'local'
-    aligner.open_gap_score = open_gap_score
-    aligner.extend_gap_score = extend_gap_score
-    return(aligner)
-
-def create_sample_data(seq_name, input_seq: Seq, index_full: Seq, index: Seq, barcode: Seq, barcode_full: Seq):
-    '''
-    Creates a full contingent of data structures from a single set of complete inputs.
-    Inputs should be given as strings.
-    '''
-    testSeqRec = SeqRecord(input_seq, id = seq_name)
-    testSeqRec.letter_annotations["phred_quality"] = [40] * len(testSeqRec.seq) # added to make it a valid fastq
-
-    index_full=Seq(index_full)
-    index=Seq(index)
-    barcode_full=Seq(barcode_full)
-    barcode=Seq(barcode)
-
-    aligner=init_aligner()
-    exact_aln_percent = 1
-    fuzzy_aln_percent = 0.9 # to simplify initial testing. We already know that this param works
-    exact_match_buffer=0
-    long_match_buffer=9
-
-    index_full_CE = ConstructElement(index_full, 'long', fuzzy_aln_percent, long_match_buffer)
-    index_CE = ConstructElement(index, 'short', exact_aln_percent, exact_match_buffer)
-    barcode_full_CE = ConstructElement(barcode_full, 'long', fuzzy_aln_percent, long_match_buffer)
-    barcode_CE = ConstructElement(barcode, 'short', exact_aln_percent, exact_match_buffer)
-
-    index_full_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
-    index_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
-    barcode_full_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
-    barcode_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
-
-    index_CEAP = ConstructElementAlignmentPair(index_full_CEA, index_CEA)
-    barcode_CEAP = ConstructElementAlignmentPair(barcode_full_CEA, barcode_CEA)    
-
-    # Create DemuxConstruct from sample values
-    test_DC = DemuxConstruct(
-        sample_id='test_sample',
-        index_full=index_full_CE,
-        index=index_CE,
-        barcode_full=barcode_full_CE,
-        barcode=barcode_CE
-    )
-        # Create DemuxConstructAlignment from test_DC
-    test_DCA = DemuxConstructAlignment(testSeqRec, test_DC, aligner)
-
-    return [testSeqRec, test_DC, test_DCA]
-
 def main():
 
     seq_name='test_seq'
@@ -485,11 +456,11 @@ def main():
     index='CGTGAT'
     barcode='ACACCT'
 
-    seq, DC, DCA=create_sample_data(seq_name, input_seq, index_full, index, barcode_full, barcode)
+    #seq, DC, DCA=create_sample_data(seq_name, input_seq, index_full, index, barcode_full, barcode)
 
-    print(DC)
+    #print(DC)
 
-    print(DCA)
+    #print(DCA)
 
 if __name__=="__main__":
     main()

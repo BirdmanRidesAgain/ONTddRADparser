@@ -5,8 +5,6 @@ Test file designed to check that ConstructElementAlignments work as designed.
 """
 # Add src directory to path so we can import modules
 
-from poplib import CR
-from re import sub
 import pytest
 import sys
 import os
@@ -19,6 +17,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from src.classes import ConstructElementAlignment
 from src.utils import *
 from src.classes import *
+
+
+
 
 
 # Create testing dataset
@@ -59,6 +60,7 @@ def aligner():
 
 @pytest.fixture
 def valid_DCA_indexF(seq_stem, index_full, index, barcode_full, barcode, aligner):
+    # testing new function to do this cleaner
     valid_seq_index_F = index_full + seq_stem + barcode_full.reverse_complement()
     testSeqRec = SeqRecord(valid_seq_index_F, id='valid_seq_index_F')
     exact_aln_percent = 1
@@ -82,9 +84,41 @@ def valid_DCA_indexF(seq_stem, index_full, index, barcode_full, barcode, aligner
     DC = DemuxConstruct(
         sample_id='test_sample',index_full=index_full_CE,index=index_CE,barcode_full=barcode_full_CE,barcode=barcode_CE)
     valid_DCA_indexF = DemuxConstructAlignment(testSeqRec, DC, aligner)
-
     yield valid_DCA_indexF
 
+
+@pytest.fixture
+def invalid_DCA_two_index_full(seq_stem, index_full, index, barcode_full, barcode, aligner):
+    invalid_DCA_two_index_full = index_full + seq_stem + index_full + barcode_full.reverse_complement()
+    testSeqRec = SeqRecord(invalid_DCA_two_index_full, id='invalid_DCA_two_index_full')
+    exact_aln_percent = 1
+    fuzzy_aln_percent = 0.9 # to simplify initial testing. We already know that this param works
+    exact_match_buffer=0
+    long_match_buffer=9
+
+    index_full_CE = ConstructElement(index_full, 'long', fuzzy_aln_percent, long_match_buffer)
+    index_CE = ConstructElement(index, 'short', exact_aln_percent, exact_match_buffer)
+    barcode_full_CE = ConstructElement(barcode_full, 'long', fuzzy_aln_percent, long_match_buffer)
+    barcode_CE = ConstructElement(barcode, 'short', exact_aln_percent, exact_match_buffer)
+
+    index_full_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
+    index_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
+    barcode_full_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
+    barcode_CEA = ConstructElementAlignment(testSeqRec, index_full_CE, aligner)
+
+    index_CEAP = ConstructElementAlignmentPair(index_full_CEA, index_CEA)
+    barcode_CEAP = ConstructElementAlignmentPair(barcode_full_CEA, barcode_CEA)    
+
+    DC = DemuxConstruct(
+        sample_id='test_sample',index_full=index_full_CE,index=index_CE,barcode_full=barcode_full_CE,barcode=barcode_CE)
+    invalid_DCA_two_index_full = DemuxConstructAlignment(testSeqRec, DC, aligner)
+
+    yield invalid_DCA_two_index_full
+
+
+
+
+# TESTS
 def test_index_index_full_pair_is_valid(index, index_full, aligner):
     '''
     Each pair of short/long barcodes should be contained within each other.
@@ -108,24 +142,30 @@ def test_valid_seq_index_orientationF_passes_CEA_checks(valid_DCA_indexF):
 def test_valid_seq_index_orientationF_CEAP_check_finds_orientationF(valid_DCA_indexF):
     valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
-    assert valid_DCA_indexF.index_CEAP.orientation == 'F' #and valid_DCA_indexF.barcode_CEAP.orientation == 'R'
+    assert 'F' in valid_DCA_indexF.index_CEAP.orientation and len(valid_DCA_indexF.barcode_CEAP.orientation) == 1
 
-def test_valid_seq_index_orientationF_passes_CEA_and_CEAP_checks(valid_DCA_indexF):
-    valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
-    valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
+def test_valid_seq_index_orientationF_passes_CEA_and_concatamer_checks(valid_DCA_indexF):
+    valid_DCA_indexF.check_all_ConstructElementAlignments_validity()
+    valid_DCA_indexF.check_all_ConstructElementAlignments_concatamer_validity()
     assert valid_DCA_indexF.valid
 
 
-def test_valid_seq_index_orientationF_passes_CEA_and_CEAP_checks(valid_DCA_indexF):
-    valid_DCA_indexF.check_all_ConstructElementAlignments_validity()
+def test_valid_seq_index_orientationF_passes_CEA_concatamer_CEAP_checks(valid_DCA_indexF):
+    valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
     valid_DCA_indexF.check_all_ConstructElementAlignments_concatamer_validity()
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
     assert valid_DCA_indexF.valid
 
+
 def test_valid_seq_index_orientationF_passes_all_checks(valid_DCA_indexF):
-    valid_DCA_indexF.align_all_ConstructElements()
     valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
+    valid_DCA_indexF.check_all_ConstructElementAlignments_concatamer_validity()
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
     valid_DCA_indexF.check_DemuxConstructAlignment_validity()
     assert valid_DCA_indexF.valid
 
+
+def test_invalid_DCA_two_index_full_fails_concatamer_check(invalid_DCA_two_index_full):
+    invalid_DCA_two_index_full.check_all_ConstructElementAlignments_validity() 
+    invalid_DCA_two_index_full.check_all_ConstructElementAlignments_concatamer_validity()
+    assert not invalid_DCA_two_index_full.valid
