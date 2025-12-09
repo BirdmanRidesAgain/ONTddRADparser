@@ -51,7 +51,8 @@ def main():
                 getattr(DCA, i)()
                 if not DCA.valid:
                     break
-            valid_DCA_lst.append(DCA)
+            if DCA.valid:
+                valid_DCA_lst.append(DCA)
 
 
 
