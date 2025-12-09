@@ -110,16 +110,17 @@ def test_valid_seq_index_orientationF_CEAP_check_finds_orientationF(valid_DCA_in
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
     assert valid_DCA_indexF.index_CEAP.orientation == 'F' #and valid_DCA_indexF.barcode_CEAP.orientation == 'R'
 
-
 def test_valid_seq_index_orientationF_passes_CEA_and_CEAP_checks(valid_DCA_indexF):
     valid_DCA_indexF.check_all_ConstructElementAlignments_validity() 
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
     assert valid_DCA_indexF.valid
 
 
-
-
-
+def test_valid_seq_index_orientationF_passes_CEA_and_CEAP_checks(valid_DCA_indexF):
+    valid_DCA_indexF.check_all_ConstructElementAlignments_validity()
+    valid_DCA_indexF.check_all_ConstructElementAlignments_concatamer_validity()
+    valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
+    assert valid_DCA_indexF.valid
 
 def test_valid_seq_index_orientationF_passes_all_checks(valid_DCA_indexF):
     valid_DCA_indexF.align_all_ConstructElements()
@@ -127,3 +128,4 @@ def test_valid_seq_index_orientationF_passes_all_checks(valid_DCA_indexF):
     valid_DCA_indexF.check_all_ConstructElementAlignmentPairs_validity()
     valid_DCA_indexF.check_DemuxConstructAlignment_validity()
     assert valid_DCA_indexF.valid
+
