@@ -41,18 +41,17 @@ def main():
 
             # these three remove all reads which are missing elements, or have individual elements present
             DCA=DemuxConstructAlignment(seq_record, DC, aligner)
-            DCA.check_all_ConstructElementAlignments_validity()
-            if DCA.valid:
-                DCA.check_all_ConstructElementAlignments_concatamer_validity()
-            # if the individual elements are fine, check them collectively
-                if DCA.valid:
-                    DCA.check_all_ConstructElementAlignmentPairs_validity()
-                    if DCA.valid:
-                        DCA.check_DemuxConstructAlignment_validity()
-            
-            # if de DCA is still valid, append the seq to the list.
-            if (DCA.valid):
-                valid_DCA_lst.append(DCA)
+            filter_lst = [
+                'check_all_ConstructElementAlignments_validity',
+                'check_all_ConstructElementAlignments_concatamer_validity',
+                'check_all_ConstructElementAlignmentPairs_validity',
+                'check_DemuxConstructAlignment_validity',
+                ]
+            for i in filter_lst:
+                getattr(DCA, i)()
+                if not DCA.valid:
+                    break
+            valid_DCA_lst.append(DCA)
 
 
 
