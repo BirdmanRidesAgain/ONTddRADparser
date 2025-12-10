@@ -55,7 +55,8 @@ def main():
                 if not DCA.valid:
                     seq_record_fate_lst.append(['fail', DC.sample_id, seq_record.id, filter])
                     break
-            # trim DCA I guess 
+            # trim DCA I guess
+            DCA.trim_ConstructElements_from_SeqRecord()
             if DCA.valid:
                 seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
                 valid_DCA_lst.append(DCA)
