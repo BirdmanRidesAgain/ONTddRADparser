@@ -8,6 +8,7 @@ import gzip
 import subprocess
 from io import TextIOWrapper
 from shutil import which
+from itertools import chain 
 
 import numpy as np
 from Bio import Align
@@ -351,6 +352,10 @@ class DemuxConstructAlignment:
         if self.index_CEAP.orientation == self.barcode_CEAP.orientation:
             self.valid = False
             return False
+        
+        self.orientation.append(self.index_CEAP.orientation)
+        self.orientation.append(self.barcode_CEAP.orientation)
+        self.orientation = list(chain(*self.orientation))
         self.valid = True
         return True
 
@@ -363,7 +368,39 @@ class DemuxConstructAlignment:
         # if forward, split the SeqRecord into two separate things and then add them together.
             # include edge case where the long CEA is on the edge of a sequence
         # edit the seqrecord, leave everything else unchanged.
-        self.SeqRecord
+
+        if self.orientation == ['F','R']:
+
+
+            FSpan = self.index_CEAP.long_CEA.FBoundary.get_span()
+            RSpan = self.barcode_CEAP.long_CEA.RBoundary.get_span()
+
+        elif self.orientation == ['R','F']:
+            FSpan = self.barcode_CEAP.long_CEA.FBoundary.get_span()
+            RSpan = self.index_CEAP.long_CEA.RBoundary.get_span()
+
+        else:
+            ValueError("Orientation is invalid for DCA")
+
+        # flip RSpan around to compensate for it being taken from the reverse complement
+
+        seq_len=np.int64(len(self.SeqRecord.seq))
+        RSpan[0]=seq_len - RSpan[0]
+        RSpan[1]=seq_len - RSpan[1]
+        if RSpan[1] < 0:
+            RSpan[1] = 0
+        temp_val=RSpan[0]
+        RSpan[0] = RSpan[1]
+        RSpan[1] = temp_val
+        #print(f'FSpan:{FSpan}\tRSpan:{RSpan}')
+
+        # now we use the cut sites we derived to actually cut the seq
+        first_segment=self.SeqRecord[0:FSpan[0]]
+        second_segment=self.SeqRecord[FSpan[1]:RSpan[0]]
+        third_segment=self.SeqRecord[RSpan[1]:seq_len]
+
+        trim_SeqRecord = first_segment + second_segment + third_segment
+        self.SeqRecord = trim_SeqRecord
         return True
 
 class DemuxxedSample:
