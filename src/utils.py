@@ -1,4 +1,4 @@
-__all__ = ["enzyme_lst", "convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "plot_SeqRecordFates"]
+__all__ = ["enzyme_lst", "convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "calc_SeqRecordFates_stats", "plot_SeqRecordFates"]
 
 import gzip
 from Bio import SeqIO
@@ -6,6 +6,8 @@ from Bio import Restriction
 import numpy as np
 from mimetypes import guess_type
 from functools import partial
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 import os
 import pandas as pd
@@ -66,7 +68,7 @@ def parse_demux_file(filepath):
             )
     return df
 
-def convert_demux_df_to_DemuxConstruct_lst(df, fuzzy_aln_percent, exact_aln_percent, buffer):
+def convert_demux_df_to_DemuxConstruct_lst(df: pd.DataFrame, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
     DC_lst = []
 
     for index, row in df.iterrows():
@@ -80,7 +82,7 @@ def convert_demux_df_to_DemuxConstruct_lst(df, fuzzy_aln_percent, exact_aln_perc
         DC_lst.append(DC)    
     return(DC_lst)
 
-def initialize_df(num_rows, column_lst):
+def initialize_df(num_rows: int, column_lst: list):
     '''
     Allocates space for a data frame.
     Values are given the placeholder value of 'np.NaN' (float) by default.
@@ -89,7 +91,7 @@ def initialize_df(num_rows, column_lst):
     df = pd.DataFrame(np.nan, index=np.arange(num_rows), columns=column_lst)
     return(df)
 
-def make_outdir(prefix):
+def make_outdir(prefix: str):
     '''
     Script makes an output directory in your working directory from a prefix.
     It then returns the path of that directory to the main script.
@@ -97,9 +99,42 @@ def make_outdir(prefix):
     os.makedirs(prefix, exist_ok=True)
     return(prefix)
 
-def plot_SeqRecordFates(fate_lst):
+def calc_SeqRecordFates_stats(fate_lst: list, outdir: str):
     '''
     Converts out sequence record information to a data frame, and then plots it.
+    Also saves the relevant data frame as a CSV.
     '''
-    fate_df = pd.DataFrame(fate_lst, columns=['sample_id', 'seq_id', 'fate'])
-    print(fate_df.head())
+    fate_df = pd.DataFrame(fate_lst, columns=[ 'outcome', 'sample_id', 'seq_id', 'filter'])
+    # you need to add the amount of failure in here too.
+    # get your count of inds, then rbind in the length of the failures to a new column, and then plot that
+    # what you need to do for 'success_df' is get a count of each 
+
+    success_df = fate_df[fate_df['outcome'] == 'success'][['sample_id', 'seq_id']]
+    fail_df = fate_df[fate_df['outcome'] == 'fail'][['sample_id', 'seq_id', 'filter']]
+    failed_seqs_lst=['NA',len(fail_df['seq_id'].unique())]
+    outcome_seqs_lst=list(success_df.groupby(by=['sample_id']).count().itertuples(index=True, name=None))
+    outcome_seqs_lst.append(failed_seqs_lst)
+    outcome_seqs_df = pd.DataFrame(outcome_seqs_lst, columns=['sample_id', 'count'])
+
+    barplot = plot_SeqRecordFates(outcome_seqs_df)
+
+    outcome_seqs_df.to_csv(f'{outdir}/ONTddRADparser_all_filter_stats.tsv', sep = "\t")
+    barplot.savefig(f'{outdir}/ONTddRADparser_demult_success.png')
+
+    return(barplot)
+
+def plot_SeqRecordFates(df: pd.DataFrame):
+    '''
+    Plots the dataframe from calc_SeqRecordFates_stats using seaborn.
+    '''
+    fig = plt.figure(figsize=(14,8), layout='constrained')
+    ax = sns.barplot(
+        df,
+        x='sample_id', y='count'
+    )
+    ax.set_xlabel('Sample IDs (bins)')
+    ax.set_ylabel('Number of reads')
+    ax.set_title('Successfully demultiplexed reads per sample', loc='left')
+
+    fig.add_axes(ax)
+    return fig

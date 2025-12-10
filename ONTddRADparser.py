@@ -50,14 +50,14 @@ def main():
                 'check_all_ConstructElementAlignmentPairs_validity',
                 'check_DemuxConstructAlignment_validity',
                 ]
-            for i in filter_lst:
-                getattr(DCA, i)()
+            for filter in filter_lst:
+                getattr(DCA, filter)()
                 if not DCA.valid:
-                    seq_record_fate_lst.append(['NA', seq_record.id, i])
+                    seq_record_fate_lst.append(['fail', DC.sample_id, seq_record.id, filter])
                     break
             # trim DCA I guess 
             if DCA.valid:
-                seq_record_fate_lst.append([DC.sample_id, seq_record.id, 'all_checks_valid'])
+                seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
                 valid_DCA_lst.append(DCA)
 
     # Create one DemuxxedSample for each unique sample_id
@@ -74,10 +74,14 @@ def main():
         if sample_id in DS_dict:
             DS_dict[sample_id].gather_SeqRecords_from_DemuxConstructAlignment(DCA)
 
-    plot_SeqRecordFates(seq_record_fate_lst)
-
-    # Create output directory and write FastqFiles for each demuxxed sample
+    # Create output directory to write outputs to
     outdir = make_outdir(args.prefix)
+
+    # write the fates of all sequences + a plot of them to 'outdir'
+    barplot = calc_SeqRecordFates_stats(seq_record_fate_lst, outdir)
+
+
+    # and write FastqFiles for each demuxxed sample
     for DS in DS_lst:
         fastq_file = DS.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
         fastq_file.write_FastqFile_to_outdir()
