@@ -232,7 +232,9 @@ class ConstructElementAlignmentPair:
             short_span=self.short_CEA.RBoundary.span
             long_span=self.long_CEA.RBoundary.span
         else:
-            raise ValueError("Something has gone wrong here.")
+            # failing here means you have an invalid alignment.
+            self.short_CEA_in_long_CEA = False
+            return False
             
         if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
             self.short_CEA_in_long_CEA = False

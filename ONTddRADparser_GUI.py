@@ -165,8 +165,6 @@ def run_ONTddRADparser():
         '-f', fasta,
         '-d', demux,
         '-b', buffer,
-        '-e1', 'EcoRI',
-        '-e2', 'SbfI',
         '-fa', fuzzy_aln_percent,
         '-ea', exact_aln_percent
     ]

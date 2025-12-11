@@ -1,8 +1,7 @@
-__all__ = ["enzyme_lst", "convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "calc_SeqRecordFates_stats", "plot_SeqRecordFates"]
+__all__ = ["convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "calc_SeqRecordFates_stats", "plot_SeqRecordFates"]
 
 import gzip
 from Bio import SeqIO
-from Bio import Restriction
 import numpy as np
 from mimetypes import guess_type
 from functools import partial
@@ -13,7 +12,6 @@ import os
 import pandas as pd
 from src.classes import *
 
-enzyme_lst=list(Restriction.__dict__)
 
 def print_args(args):
     print("User-defined arguments:")

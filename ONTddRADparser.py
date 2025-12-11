@@ -14,16 +14,11 @@ def main():
     parser.add_argument('-d','--demux', help='Path to the demux file. Required.', type=str, required=True)
     parser.add_argument('-b','--buffer', help='The integer number of base pairs outside of the long element the short element can align to. Defaults to 0 (internal matching only).', type=int, default=0)
     parser.add_argument('-p','--prefix', help='Output prefix. Defaults to \'ONTddRADparse_out\' if not set.', type=str, default=f'{default_prefix}_out')
-    parser.add_argument('-e1','--enzyme1', help='The restriction enzyme associated with the index. Valid choices come from BioPython.Restriction', type=str)
-    parser.add_argument('-e2','--enzyme2', help='The restriction enzyme associated with the barcode. Valid choices come from BioPython.Restriction', type=str)
     parser.add_argument('-fa','--fuzzy_aln_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
     parser.add_argument('-ea','--exact_aln_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
 
     args = parser.parse_args()
     print_args(args)
-
-    if not (args.enzyme1 in enzyme_lst and args.enzyme2 in enzyme_lst and args.enzyme1!=args.enzyme2):
-        raise ValueError(f"Invalid enzymes. Enzymes must differ, and valid options are: \n{enzyme_lst}")
 
     ### PARSE IN FILES
     seq_record_lst = parse_seqfile(args.fastq, 'fastq')
