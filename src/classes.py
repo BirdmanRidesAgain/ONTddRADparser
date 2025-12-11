@@ -21,49 +21,57 @@ class Boundary:
     Simple class representing the zero-indexed start/end boundaries of two sequences.
     Alignments are made with BioPython's Align module.
     '''
-    def __init__(self, length: str ='', start_idx=np.nan, end_idx=np.nan, buffer: int = 0, valid: bool = False):
-        self.length = length
+    def __init__(self, seq_len: int, start_idx=np.nan, end_idx=np.nan, buffer: int = 0, valid: bool = False):
+        self.seq_len = seq_len
         self.start_idx = start_idx
         self.end_idx = end_idx
         self.buffer = buffer
+        self.span = [np.nan, np.nan]
         self.valid = valid
-
 
     def __str__(self):
         str=f'''
-        Length\tOrientation\tStart_idx\tEnd_index\tBuffer
-        {self.length}\t{self.valid}\t{self.start_idx}\t{self.end_idx}\t{self.buffer}
+        Full_seq_len\tAln_start_idx\tAln_end_index\tBuffer\tValidity
+        {self.seq_len}\t{self.start_idx}\t{self.end_idx}\t{self.buffer}\t{self.valid}
         '''
         return(str)
 
-    def get_span(self):
+    def get_Boundary_span(self):
         '''
         Calculates the span of the boundary, taking the buffer into account when present.
         If the buffer puts the span past the start of the seq (ie, if it's less than 0), defaults to 0.
+        If the buffer puts it over the length of the seq, defaults to the seq length.
+
+        If the start or end idx are np.nan, then just leave this unset.
         '''
+        if not self.valid:
+            raise ValueError("Cannot get span of an invalid alignment.")
         span_start_idx = self.start_idx - self.buffer
         if (span_start_idx < 0):
-            span_start_idx=0
+            span_start_idx=np.int64(0)
         span_end_idx = self.end_idx + self.buffer
-        span_list=[span_start_idx, span_end_idx]
-        return span_list
-    
-    def set_Boundary(self, length: str, start_idx: int, end_idx: int, buffer: int):
-        '''
-        Fills in a boundary and checks its validity.
-        '''
-        self.length=length
-        self.start_idx=start_idx
-        self.end_idx=end_idx
-        self.buffer=buffer
-        self.check_Boundary_validity()
-
+        if (span_end_idx > self.seq_len):
+            span_end_idx = self.seq_len
+        self.span=[span_start_idx, span_end_idx]
+        
     def check_Boundary_validity(self):
         '''Boundaries are valid if both the start and end indices are valid.'''
         if np.isnan(self.start_idx) or np.isnan(self.end_idx):
             self.valid = False
         else:
             self.valid = True
+    
+    def set_Boundary(self, start_idx: int, end_idx: int, buffer: int):
+        '''
+        Fills in a boundary and checks its validity.
+        '''
+        self.start_idx=start_idx
+        self.end_idx=end_idx
+        self.buffer=buffer
+        self.check_Boundary_validity()
+        if self.valid:
+            self.get_Boundary_span()
+
 
 class ConstructElement:
     '''
@@ -71,16 +79,16 @@ class ConstructElement:
     In the context of ONTddRADparse, they correspond to the index, barcode, index_full and barcode_full elements.
     We include the 'length' of construct, (long, short, etc.), the alignment specificity (`aln_percent`), and the raw sequence.
     '''
-    def __init__(self, seq: Seq, length: str, aln_percent: float, buffer: int=0):
+    def __init__(self, seq: Seq, CE_type: str, aln_percent: float, buffer: int=0):
         self.seq = seq
-        self.length = length
+        self.CE_type = CE_type
         self.aln_percent = aln_percent
         self.buffer = buffer
 
     def __str__(self):
         str = f'''
-        seq\tlength\taln_percent\tbuffer
-        {self.seq}\t{self.length}\t{self.aln_percent}\t{self.buffer}
+        seq\tCE_ype\taln_percent\tbuffer
+        {self.seq}\t{self.CE_type}\t{self.aln_percent}\t{self.buffer}
         '''
         return(str)
 
@@ -96,14 +104,15 @@ class ConstructElementAlignment:
         self.ConstructElement = ConstructElement
         self.aligner = aligner
         self.orientation = []
-        self.FBoundary = Boundary()
-        self.RBoundary = Boundary()
+        seq_len=len(self.SeqRecord.seq)
+        self.FBoundary = Boundary(seq_len)
+        self.RBoundary = Boundary(seq_len)
         self.valid = False
 
     def __str__(self):
         str=f'''
-        SeqRecord\tConstructElement_length\Orientation\taln_valid\tFBoundary_start_idx\tFBoundary_end_idx\tRBoundary_start_idx\tRBoundary_end_idx
-        {self.SeqRecord.id}\t{self.ConstructElement.length}\t{self.ConstructElement.orientation}\t{self.valid}\t{self.FBoundary.start_idx}\t{self.FBoundary.end_idx}\t{self.RBoundary.start_idx}\t{self.RBoundary.end_idx}
+        SeqRecord\tConstructElement_type\Orientation\taln_valid\tFBoundary_start_idx\tFBoundary_end_idx\tRBoundary_start_idx\tRBoundary_end_idx
+        {self.SeqRecord.id}\t{self.ConstructElement.CE_type}\t{self.ConstructElement.orientation}\t{self.valid}\t{self.FBoundary.start_idx}\t{self.FBoundary.end_idx}\t{self.RBoundary.start_idx}\t{self.RBoundary.end_idx}
         '''
         return(str)
 
@@ -125,12 +134,12 @@ class ConstructElementAlignment:
     def set_ConstructElement_FBoundary(self):     
         '''Align in the forward direction.'''
         aln = align_target(self.SeqRecord.seq, self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
-        self.FBoundary.set_Boundary(self.ConstructElement.length, aln[0], aln[1], self.ConstructElement.buffer)
+        self.FBoundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
 
     def set_ConstructElement_RBoundary(self):
         '''Align in the reverse direction.'''
         aln = align_target(self.SeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
-        self.RBoundary.set_Boundary(self.ConstructElement.length, aln[0], aln[1], self.ConstructElement.buffer)
+        self.RBoundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
 
     def check_ConstructElementAlignment_validity(self):
         '''
@@ -143,7 +152,7 @@ class ConstructElementAlignment:
         xor_valid = bool(F_orientation ^ R_orientation)
 
         # Additional rule: for short constructs, allow both boundaries aligned
-        short_FR_orientation_valid = bool((self.ConstructElement.length == 'short') and ('F' in self.orientation) and ('R' in self.orientation))
+        short_FR_orientation_valid = bool((self.ConstructElement.CE_type == 'short') and ('F' in self.orientation) and ('R' in self.orientation))
 
         self.valid = xor_valid or short_FR_orientation_valid
         return True
@@ -194,7 +203,7 @@ class ConstructElementAlignmentPair:
 
     def get_ConstructElementAlignmentPair_orientation(self):
         '''
-        Determines whether the pair is `F`, `R`, or `invalid`, and updates `self.orientation`.
+        Determines whether the pair is `F`, `R`, or [], and updates `self.orientation`.
         '''
         for i in ['F','R']:
             if (i in self.long_CEA.orientation):
@@ -217,11 +226,11 @@ class ConstructElementAlignmentPair:
 
         # now we need to check that the short element is found inside of the long element
         if ('F' in self.orientation):
-            short_span = self.short_CEA.FBoundary.get_span()
-            long_span = self.long_CEA.FBoundary.get_span()
+            short_span = self.short_CEA.FBoundary.span
+            long_span = self.long_CEA.FBoundary.span
         elif ('R' in self.orientation): # now we need to check that the short element is found inside of the long element
-            short_span=self.short_CEA.RBoundary.get_span()
-            long_span=self.long_CEA.RBoundary.get_span()
+            short_span=self.short_CEA.RBoundary.span
+            long_span=self.long_CEA.RBoundary.span
         else:
             raise ValueError("Something has gone wrong here.")
             
@@ -235,8 +244,8 @@ class ConstructElementAlignmentPair:
         '''
         Checks if the CEPA is valid, based on self.orientation and self.short_CEA_in_long_CEA, and updates the self.valid tag.
         '''
-        if self.get_ConstructElementAlignmentPair_orientation():
-            if self.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment():
+        if self.orientation:
+            if self.short_CEA_in_long_CEA:
                 self.valid = True
                 return True
         self.valid = False
@@ -270,7 +279,6 @@ class DemuxConstructAlignment:
     Contains the SeqRecord and DemuxConstruct.
     Also contains two ConstructElementPairAlignments, (idx and barcode).
     Finally, contains a 'valid' and 'reason' tag.
-
     '''
 
     def __init__(self, SeqRecord: 'SeqRecord', DemuxConstruct: 'DemuxConstruct', aligner):
@@ -279,7 +287,7 @@ class DemuxConstructAlignment:
         self.DemuxConstruct = DemuxConstruct
         self.orientation = []
 
-        # Ugh. I really don't like that these are accessible from the top level, but fine; whatever.
+        # construct and validate CEAs
         index_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index_full, aligner)
         index_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index, aligner)
         barcode_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
@@ -289,6 +297,11 @@ class DemuxConstructAlignment:
 
         self.index_CEAP = ConstructElementAlignmentPair(long_CEA=index_full_CEA, short_CEA=index_CEA)
         self.barcode_CEAP = ConstructElementAlignmentPair(long_CEA=barcode_full_CEA, short_CEA=barcode_CEA)
+        # now get their orientations
+        self.index_CEAP.get_ConstructElementAlignmentPair_orientation()
+        self.index_CEAP.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
+        self.barcode_CEAP.get_ConstructElementAlignmentPair_orientation()
+        self.barcode_CEAP.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
 
     def __str__(self):
 
@@ -370,14 +383,12 @@ class DemuxConstructAlignment:
         # edit the seqrecord, leave everything else unchanged.
 
         if self.orientation == ['F','R']:
-
-
-            FSpan = self.index_CEAP.long_CEA.FBoundary.get_span()
-            RSpan = self.barcode_CEAP.long_CEA.RBoundary.get_span()
+            FSpan = self.index_CEAP.long_CEA.FBoundary.span
+            RSpan = self.barcode_CEAP.long_CEA.RBoundary.span
 
         elif self.orientation == ['R','F']:
-            FSpan = self.barcode_CEAP.long_CEA.FBoundary.get_span()
-            RSpan = self.index_CEAP.long_CEA.RBoundary.get_span()
+            FSpan = self.barcode_CEAP.long_CEA.FBoundary.span
+            RSpan = self.index_CEAP.long_CEA.RBoundary.span
 
         else:
             ValueError("Orientation is invalid for DCA")
@@ -387,8 +398,8 @@ class DemuxConstructAlignment:
         seq_len=np.int64(len(self.SeqRecord.seq))
         RSpan[0]=seq_len - RSpan[0]
         RSpan[1]=seq_len - RSpan[1]
-        if RSpan[1] < 0:
-            RSpan[1] = 0
+
+        # swap the values with a tempvar
         temp_val=RSpan[0]
         RSpan[0] = RSpan[1]
         RSpan[1] = temp_val
