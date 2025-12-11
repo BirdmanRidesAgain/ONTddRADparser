@@ -3,6 +3,7 @@
 
 from argparse import ArgumentParser
 from os import path
+from tqdm import tqdm
 from src.utils import *
 from src.classes import *
 
@@ -34,7 +35,8 @@ def main():
 
     # Align and validate ConstructElements to SeqRecords
     valid_DCA_lst = []
-    for seq_record in seq_record_lst:
+    invalid_DCA_lst = []
+    for seq_record in tqdm(seq_record_lst):
         for DC in DC_lst:
 
             # these three remove all reads which are missing elements, or have individual elements present
@@ -48,13 +50,14 @@ def main():
             for filter in filter_lst:
                 getattr(DCA, filter)()
                 if not DCA.valid:
+                    invalid_DCA_lst.append(DCA)
                     seq_record_fate_lst.append(['fail', DC.sample_id, seq_record.id, filter])
                     break
             # trim DCA I guess
             if DCA.valid:
                 DCA.trim_ConstructElements_from_SeqRecord()
-                seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
                 valid_DCA_lst.append(DCA)
+                seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
 
     # Create one DemuxxedSample for each unique sample_id
     DS_lst = []

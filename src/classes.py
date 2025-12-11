@@ -72,7 +72,6 @@ class Boundary:
         if self.valid:
             self.get_Boundary_span()
 
-
 class ConstructElement:
     '''
     Individual elements of a larger DNA construct, implemented as a Seq object with metadata.
@@ -317,6 +316,9 @@ class DemuxConstructAlignment:
     def align_all_ConstructElements(self, CEA_lst):
         for CEA in CEA_lst:
             CEA.align_ConstructElement()
+            CEA.check_ConstructElementAlignment_validity()
+            if not CEA.valid:
+                break
 
     def check_all_ConstructElementAlignments_validity(self):
         '''
@@ -333,7 +335,7 @@ class DemuxConstructAlignment:
 
     def check_all_ConstructElementAlignments_concatamer_validity(self):
         '''
-        Checks validated CEAs for concatamers
+        Checks validated CEAs for concatamers.
         '''
         long_CEAs = [self.index_CEAP.long_CEA, self.barcode_CEAP.long_CEA]
         for long_CEA in long_CEAs:
