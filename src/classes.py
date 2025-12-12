@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from __future__ import annotations
+from tracemalloc import start
 
 __all__ = ["Boundary", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target"]
 
@@ -132,12 +133,35 @@ class ConstructElementAlignment:
 
     def set_ConstructElement_FBoundary(self):     
         '''Align in the forward direction.'''
-        aln = align_target(self.SeqRecord.seq, self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+        # We will only use the alignment method if we have to. Exact matches can get string methods.
+        if self.ConstructElement.CE_type == 'long':
+            aln = align_target(self.SeqRecord.seq, self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+
+        elif self.ConstructElement.CE_type == 'short':
+            start_idx = self.SeqRecord.seq.lower().find(self.ConstructElement.seq.lower())
+            if start_idx != -1:
+                aln = [start_idx, start_idx+(len(self.ConstructElement.seq.lower())-1)]
+            else:
+                aln = [np.nan, np.nan]
+        else:
+            raise ValueError("Your CE_type should be either 'short' or 'long'.")
+
+        # set the boundary    
         self.FBoundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
 
     def set_ConstructElement_RBoundary(self):
         '''Align in the reverse direction.'''
-        aln = align_target(self.SeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+        if self.ConstructElement.CE_type == 'long':
+            aln = align_target(self.SeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+        elif self.ConstructElement.CE_type == 'short':
+            start_idx = self.SeqRecord.seq.reverse_complement().lower().find(self.ConstructElement.seq.lower())
+            if start_idx != -1:
+                aln = [start_idx, start_idx+(len(self.ConstructElement.seq.lower())-1)]
+            else:
+                aln = [np.nan, np.nan]
+        else:
+            raise ValueError("Your CE_type should be either 'short' or 'long'.")
+        # set the boundary   
         self.RBoundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
 
     def check_ConstructElementAlignment_validity(self):

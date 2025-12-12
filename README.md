@@ -169,5 +169,24 @@ conda install biopython numpy pandas
 ```
 
 ### Optional Dependencies
+
 - **pigz** - Parallel gzip compression tool (used if available, otherwise falls back to `gzip`)
 
+## Speed Boost and profiling
+
+On 12 Dec 2025, naively implemented and using the following commands, `ONTddRADparser.py` had the following speeds:
+
+```
+
+```
+
+| Command | Machine | Real time | User time |
+| -- | -- | -- | -- | -- |
+| `time ./ONTddRADparser.py -f tests/data/ONT_test_0001percent.fq.gz -d tests/data/ddRAD_demux_construct.tsv` | Nietzsche | 42.105 | 40.28s |
+
+
+We use [`cprofilev`](https://github.com/ymichael/cprofilev) to figure out what's wrong with this.
+
+```
+python -m cprofilev -f ONTddRADparser_cProfile.tsv
+```
