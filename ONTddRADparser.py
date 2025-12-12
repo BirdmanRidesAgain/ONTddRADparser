@@ -4,6 +4,7 @@
 from argparse import ArgumentParser
 from os import path
 from tqdm import tqdm
+import multiprocessing as multi
 from src.utils import *
 from src.classes import *
 
@@ -14,6 +15,7 @@ def main():
     parser.add_argument('-f','--fastq', help='Path to the input fq file. Required.', type=str, required=True)
     parser.add_argument('-d','--demux', help='Path to the demux file. Required.', type=str, required=True)
     parser.add_argument('-b','--buffer', help='The integer number of base pairs outside of the long element the short element can align to. Defaults to 0 (internal matching only).', type=int, default=0)
+    parser.add_argument('-t','--threads', help='The number of threads (actually CPU cores) this script can use to parallelize processes. Defaults to half the capacity of the host machine.', type=int, default=multi.cpu_count() // 2)    
     parser.add_argument('-p','--prefix', help='Output prefix. Defaults to \'ONTddRADparse_out\' if not set.', type=str, default=f'{default_prefix}_out')
     parser.add_argument('-fa','--fuzzy_aln_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
     parser.add_argument('-ea','--exact_aln_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
@@ -29,24 +31,24 @@ def main():
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
     aligner=init_aligner()
+    filter_lst = [
+    'check_all_ConstructElementAlignments_validity',
+    'check_all_ConstructElementAlignments_concatamer_validity',
+    'check_all_ConstructElementAlignmentPairs_validity',
+    'check_DemuxConstructAlignment_validity',
+    ]
 
-    # init empty lists to keep track of fates of various 
+
+    # init empty lists to keep track of fates of various metrics
     seq_record_fate_lst = []
-
-    # Align and validate ConstructElements to SeqRecords
     valid_DCA_lst = []
     invalid_DCA_lst = []
+
     for seq_record in tqdm(seq_record_lst):
         for DC in DC_lst:
 
             # these three remove all reads which are missing elements, or have individual elements present
             DCA=DemuxConstructAlignment(seq_record, DC, aligner)
-            filter_lst = [
-                'check_all_ConstructElementAlignments_validity',
-                'check_all_ConstructElementAlignments_concatamer_validity',
-                'check_all_ConstructElementAlignmentPairs_validity',
-                'check_DemuxConstructAlignment_validity',
-                ]
             for filter in filter_lst:
                 getattr(DCA, filter)()
                 if not DCA.valid:
@@ -58,6 +60,7 @@ def main():
                 DCA.trim_ConstructElements_from_SeqRecord()
                 valid_DCA_lst.append(DCA)
                 seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
+                break
 
     # Create one DemuxxedSample for each unique sample_id
     DS_lst = []
