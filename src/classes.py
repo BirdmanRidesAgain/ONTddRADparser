@@ -14,6 +14,7 @@ import numpy as np
 from Bio import Align
 from Bio import SeqIO
 from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 class Boundary:
     '''
@@ -90,8 +91,11 @@ class SimpleSeqRecord():
         '''
         return(str)
 
-    def make_SimpleSeqRecord(self):
-        seq_record = SimpleSeqRecord(self.seq, id=self.id)
+    def make_SeqRecord(self):
+        '''
+        Converts a SimpleSeqRecord to a SeqRecord.
+        '''
+        seq_record = SeqRecord(self.seq, id=self.id)
         seq_record.letter_annotations["phred_quality"] = [ord(q) - 33 for q in self.qual]
 
         return(seq_record)
@@ -457,12 +461,19 @@ class DemuxConstructAlignment:
         #print(f'FSpan:{FSpan}\tRSpan:{RSpan}')
 
         # now we use the cut sites we derived to actually cut the seq
-        first_segment=self.SimpleSeqRecord[0:FSpan[0]]
-        second_segment=self.SimpleSeqRecord[FSpan[1]:RSpan[0]]
-        third_segment=self.SimpleSeqRecord[RSpan[1]:seq_len]
+        first_segment_seq=self.SimpleSeqRecord.seq[0:FSpan[0]]
+        second_segment_seq=self.SimpleSeqRecord.seq[FSpan[1]:RSpan[0]]
+        third_segment_seq=self.SimpleSeqRecord.seq[RSpan[1]:seq_len]
 
-        trim_SimpleSeqRecord = first_segment + second_segment + third_segment
-        self.SimpleSeqRecord = trim_SimpleSeqRecord
+        first_segment_qual=self.SimpleSeqRecord.qual[0:FSpan[0]]
+        second_segment_qual=self.SimpleSeqRecord.qual[FSpan[1]:RSpan[0]]
+        third_segment_qual=self.SimpleSeqRecord.qual[RSpan[1]:seq_len]
+
+        trim_SimpleSeqRecord_seq = first_segment_seq + second_segment_seq + third_segment_seq
+        trim_SimpleSeqRecord_qual = first_segment_qual + second_segment_qual + third_segment_qual
+
+        self.SimpleSeqRecord.seq = trim_SimpleSeqRecord_seq
+        self.SimpleSeqRecord.qual = trim_SimpleSeqRecord_qual
         return True
 
 class DemuxxedSample:
@@ -519,7 +530,9 @@ class FastqFile:
             with open(self.filepath, "wb") as outfile, \
                     subprocess.Popen([pigz_path, "-c"], stdin=subprocess.PIPE, stdout=outfile) as proc:
                 with TextIOWrapper(proc.stdin, encoding="utf-8") as handle:
-                    SeqIO.write(self.SimpleSeqRecord_lst, handle, self.format)
+                    for i in self.SimpleSeqRecord_lst:
+                        new_SeqRecord=i.make_SeqRecord()
+                        SeqIO.write(new_SeqRecord, handle, self.format)
                     handle.flush()
                 proc.stdin.close()
                 proc.wait()

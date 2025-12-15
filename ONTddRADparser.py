@@ -7,7 +7,7 @@ from tqdm import tqdm
 import multiprocessing as multi
 from src.utils import *
 from src.classes import *
-import time
+#import time
 
 def main():
     ### DEFINE AND CHECK ARGS
@@ -25,11 +25,7 @@ def main():
     print_args(args)
 
     ### PARSE IN FILES
-    start = time.process_time()
-    seq_record_lst = parse_seqfile(args.fastq)
-    stop = time.process_time()
-    print(f'Time to parse: {stop - start}')
-
+    seq_record_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
     Demux_df = parse_demux_file(args.demux)
     DC_lst = convert_demux_df_to_DemuxConstruct_lst(Demux_df, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
     # fixme - ensure that all DemuxConstruct.sample_ids in this list are unique
@@ -45,25 +41,27 @@ def main():
 
 
     # init empty lists to keep track of fates of various metrics
+    # separate this list into two.
+    # one loop creates all the DCAs and runs in parallel
+    # the other assesses them for valid/invalid, and can run sequentially
     seq_record_fate_lst = []
-    valid_DCA_lst = []
-    invalid_DCA_lst = []
+    DCA_lst_valid = []
+    DCA_lst_invalid = []
 
     for seq_record in tqdm(seq_record_lst):
         for DC in DC_lst:
-
             # these three remove all reads which are missing elements, or have individual elements present
             DCA=DemuxConstructAlignment(seq_record, DC, aligner)
             for filter in filter_lst:
                 getattr(DCA, filter)()
                 if not DCA.valid:
-                    invalid_DCA_lst.append(DCA)
+                    DCA_lst_invalid.append(DCA)
                     seq_record_fate_lst.append(['fail', DC.sample_id, seq_record.id, filter])
                     break
             # trim DCA I guess
             if DCA.valid:
                 DCA.trim_ConstructElements_from_SimpleSeqRecord()
-                valid_DCA_lst.append(DCA)
+                DCA_lst_valid.append(DCA)
                 seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
                 break
 
@@ -76,7 +74,7 @@ def main():
         DS_dict[sample_id] = DS
 
     # Scan through all DemuxConstructAlignment objects and gather SimpleSeqRecords
-    for DCA in valid_DCA_lst:
+    for DCA in DCA_lst_valid:
         sample_id = DCA.DemuxConstruct.sample_id
         if sample_id in DS_dict:
             DS_dict[sample_id].gather_SimpleSeqRecords_from_DemuxConstructAlignment(DCA)

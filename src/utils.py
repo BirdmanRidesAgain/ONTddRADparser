@@ -1,4 +1,4 @@
-__all__ = ["convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "calc_SeqRecordFates_stats", "plot_SeqRecordFates"]
+__all__ = ["convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates"]
 
 import gzip
 #from Bio import SeqIO
@@ -99,7 +99,7 @@ def make_outdir(prefix: str):
     os.makedirs(prefix, exist_ok=True)
     return(prefix)
 
-def calc_SeqRecordFates_stats(fate_lst: list, outdir: str):
+def calc_SimpleSeqRecordFates_stats(fate_lst: list, outdir: str):
     '''
     Converts out sequence record information to a data frame, and then plots it.
     Also saves the relevant data frame as a CSV.
