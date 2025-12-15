@@ -1,7 +1,8 @@
 __all__ = ["convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "calc_SeqRecordFates_stats", "plot_SeqRecordFates"]
 
 import gzip
-from Bio import SeqIO
+#from Bio import SeqIO
+from Bio.SeqIO.QualityIO import FastqGeneralIterator
 import numpy as np
 from mimetypes import guess_type
 from functools import partial
@@ -18,17 +19,18 @@ def print_args(args):
     for key, value in vars(args).items():
         print(f"\t{key}: {value}")
 
-def parse_seqfile(seqfile, format):
+def parse_seqfile(seqfile):
     '''
     Takes in a path to a sequence file (compressed or uncompressed), and a valid string in SeqIO.parse() denoting the file format.
     Returns a list of all records in the file.
     Use case of function generally assumed to be to read fasta/fastq files.
     '''
-
     encoding = guess_type(seqfile)[1]
     _open = partial(gzip.open, mode = 'rt') if encoding == 'gzip' else open
+    seqfile_lst = []
     with _open(seqfile) as f:
-        seqfile_lst = list(SeqIO.parse(f, format))
+        for id, seq, qual in FastqGeneralIterator(f):
+            seqfile_lst.append(SimpleSeqRecord(id, seq, qual))
     return seqfile_lst
 
 def parse_demux_file(filepath):

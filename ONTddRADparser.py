@@ -7,6 +7,7 @@ from tqdm import tqdm
 import multiprocessing as multi
 from src.utils import *
 from src.classes import *
+import time
 
 def main():
     ### DEFINE AND CHECK ARGS
@@ -24,7 +25,11 @@ def main():
     print_args(args)
 
     ### PARSE IN FILES
-    seq_record_lst = parse_seqfile(args.fastq, 'fastq')
+    start = time.process_time()
+    seq_record_lst = parse_seqfile(args.fastq)
+    stop = time.process_time()
+    print(f'Time to parse: {stop - start}')
+
     Demux_df = parse_demux_file(args.demux)
     DC_lst = convert_demux_df_to_DemuxConstruct_lst(Demux_df, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
     # fixme - ensure that all DemuxConstruct.sample_ids in this list are unique
@@ -57,7 +62,7 @@ def main():
                     break
             # trim DCA I guess
             if DCA.valid:
-                DCA.trim_ConstructElements_from_SeqRecord()
+                DCA.trim_ConstructElements_from_SimpleSeqRecord()
                 valid_DCA_lst.append(DCA)
                 seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
                 break
@@ -70,17 +75,17 @@ def main():
         DS_lst.append(DS)
         DS_dict[sample_id] = DS
 
-    # Scan through all DemuxConstructAlignment objects and gather SeqRecords
+    # Scan through all DemuxConstructAlignment objects and gather SimpleSeqRecords
     for DCA in valid_DCA_lst:
         sample_id = DCA.DemuxConstruct.sample_id
         if sample_id in DS_dict:
-            DS_dict[sample_id].gather_SeqRecords_from_DemuxConstructAlignment(DCA)
+            DS_dict[sample_id].gather_SimpleSeqRecords_from_DemuxConstructAlignment(DCA)
 
     # Create output directory to write outputs to
     outdir = make_outdir(args.prefix)
 
     # write the fates of all sequences + a plot of them to 'outdir'
-    barplot = calc_SeqRecordFates_stats(seq_record_fate_lst, outdir)
+    barplot = calc_SimpleSeqRecordFates_stats(seq_record_fate_lst, outdir)
 
 
     # and write FastqFiles for each demuxxed sample

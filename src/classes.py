@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from tracemalloc import start
 
-__all__ = ["Boundary", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target"]
+__all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target"]
 
 import gzip
 import subprocess
@@ -15,7 +14,6 @@ import numpy as np
 from Bio import Align
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 class Boundary:
     '''
@@ -73,6 +71,31 @@ class Boundary:
         if self.valid:
             self.get_Boundary_span()
 
+
+class SimpleSeqRecord():
+    '''
+    A lighter-weight implementation of Biopython's SimpleSeqRecord object, designed to work with `FastqGeneralIterator`.
+    It contains the title, seq, and qual strings of the original SimpleSeqRecord object, and otherwise acts as a drop-in replacement.
+    '''
+    def __init__(self, id: str, seq: str, qual: str):
+        self.id = id
+        self.seq = Seq(seq)
+        self.qual = qual
+    
+    def __str__(self):
+        str = f'''
+        id\t{self.id}
+        seq\t{self.seq}
+        qual\t{self.qual}
+        '''
+        return(str)
+
+    def make_SimpleSeqRecord(self):
+        seq_record = SimpleSeqRecord(self.seq, id=self.id)
+        seq_record.letter_annotations["phred_quality"] = [ord(q) - 33 for q in self.qual]
+
+        return(seq_record)
+
 class ConstructElement:
     '''
     Individual elements of a larger DNA construct, implemented as a Seq object with metadata.
@@ -94,25 +117,25 @@ class ConstructElement:
 
 class ConstructElementAlignment:
     '''
-    Represents a ConstructElement aligned to a SeqRecord.
+    Represents a ConstructElement aligned to a SimpleSeqRecord.
     Generates/houses boundary objects and stores the validity of their alignment.
     A ConstructElementAlignment is valid if XORing RBoundary and RBoundary is true.
     '''
 
-    def __init__(self, SeqRecord: 'SeqRecord', ConstructElement: 'ConstructElement', aligner):
-        self.SeqRecord = SeqRecord
+    def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', ConstructElement: 'ConstructElement', aligner):
+        self.SimpleSeqRecord = SimpleSeqRecord
         self.ConstructElement = ConstructElement
         self.aligner = aligner
         self.orientation = []
-        seq_len=len(self.SeqRecord.seq)
+        seq_len=len(self.SimpleSeqRecord.seq)
         self.FBoundary = Boundary(seq_len)
         self.RBoundary = Boundary(seq_len)
         self.valid = False
 
     def __str__(self):
         str=f'''
-        SeqRecord\tConstructElement_type\Orientation\taln_valid\tFBoundary_start_idx\tFBoundary_end_idx\tRBoundary_start_idx\tRBoundary_end_idx
-        {self.SeqRecord.id}\t{self.ConstructElement.CE_type}\t{self.ConstructElement.orientation}\t{self.valid}\t{self.FBoundary.start_idx}\t{self.FBoundary.end_idx}\t{self.RBoundary.start_idx}\t{self.RBoundary.end_idx}
+        SimpleSeqRecord\tConstructElement_type\Orientation\taln_valid\tFBoundary_start_idx\tFBoundary_end_idx\tRBoundary_start_idx\tRBoundary_end_idx
+        {self.SimpleSeqRecord.id}\t{self.ConstructElement.CE_type}\t{self.ConstructElement.orientation}\t{self.valid}\t{self.FBoundary.start_idx}\t{self.FBoundary.end_idx}\t{self.RBoundary.start_idx}\t{self.RBoundary.end_idx}
         '''
         return(str)
 
@@ -135,10 +158,10 @@ class ConstructElementAlignment:
         '''Align in the forward direction.'''
         # We will only use the alignment method if we have to. Exact matches can get string methods.
         if self.ConstructElement.CE_type == 'long':
-            aln = align_target(self.SeqRecord.seq, self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+            aln = align_target(self.SimpleSeqRecord.seq, self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
 
         elif self.ConstructElement.CE_type == 'short':
-            start_idx = self.SeqRecord.seq.lower().find(self.ConstructElement.seq.lower())
+            start_idx = self.SimpleSeqRecord.seq.lower().find(self.ConstructElement.seq.lower())
             if start_idx != -1:
                 aln = [start_idx, start_idx+(len(self.ConstructElement.seq.lower())-1)]
             else:
@@ -152,9 +175,9 @@ class ConstructElementAlignment:
     def set_ConstructElement_RBoundary(self):
         '''Align in the reverse direction.'''
         if self.ConstructElement.CE_type == 'long':
-            aln = align_target(self.SeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+            aln = align_target(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
         elif self.ConstructElement.CE_type == 'short':
-            start_idx = self.SeqRecord.seq.reverse_complement().lower().find(self.ConstructElement.seq.lower())
+            start_idx = self.SimpleSeqRecord.seq.reverse_complement().lower().find(self.ConstructElement.seq.lower())
             if start_idx != -1:
                 aln = [start_idx, start_idx+(len(self.ConstructElement.seq.lower())-1)]
             else:
@@ -189,9 +212,9 @@ class ConstructElementAlignment:
         min_aln_score = len(self.ConstructElement.seq)* self.ConstructElement.aln_percent
 
         if ('F' in self.orientation):
-            aln=self.aligner.align(self.SeqRecord.seq, self.ConstructElement.seq)
+            aln=self.aligner.align(self.SimpleSeqRecord.seq, self.ConstructElement.seq)
         elif ('R' in self.orientation):
-            aln=self.aligner.align(self.SeqRecord.seq.reverse_complement(), self.ConstructElement.seq)
+            aln=self.aligner.align(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq)
         
         if len(aln)>1:
             if aln.score >= min_aln_score:
@@ -205,11 +228,11 @@ class ConstructElementAlignmentPair:
     Two complementary `ConstructElements` - one long, and one short. In the context of ONTddRADparser, they consist of:
         - `index` and `index_full`
         - `barcode` and `barcode_full`
-    The short one is around 6-9 bp, and is allowed to exist more than once in the SeqRecord.
+    The short one is around 6-9 bp, and is allowed to exist more than once in the SimpleSeqRecord.
     The long one should only be found once - otherwise, it is a concatamer.
     '''
     def __init__(self, long_CEA: 'ConstructElementAlignment', short_CEA: 'ConstructElementAlignment'):
-        if long_CEA.SeqRecord.id != short_CEA.SeqRecord.id:
+        if long_CEA.SimpleSeqRecord.id != short_CEA.SimpleSeqRecord.id:
             ValueError("ConstructElementAlignments must be based on the same sequence.")
         self.valid = False
         self.long_CEA = long_CEA
@@ -291,7 +314,7 @@ class DemuxConstruct:
 
     def __str__(self):
         str = f'''
-        SeqRecord\t{self.sample_id}
+        SimpleSeqRecord\t{self.sample_id}
         index_full\t{self.index_full}
         index\t\t{self.index}
         barcode_full\t{self.barcode_full}
@@ -301,22 +324,22 @@ class DemuxConstruct:
 class DemuxConstructAlignment:
     '''
     Represents the alignments between a SecRecord object and a DemuxConstruct.
-    Contains the SeqRecord and DemuxConstruct.
+    Contains the SimpleSeqRecord and DemuxConstruct.
     Also contains two ConstructElementPairAlignments, (idx and barcode).
     Finally, contains a 'valid' and 'reason' tag.
     '''
 
-    def __init__(self, SeqRecord: 'SeqRecord', DemuxConstruct: 'DemuxConstruct', aligner):
+    def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', DemuxConstruct: 'DemuxConstruct', aligner):
         self.valid = False     # we initialize validity as false until proven otherwise
-        self.SeqRecord = SeqRecord
+        self.SimpleSeqRecord = SimpleSeqRecord
         self.DemuxConstruct = DemuxConstruct
         self.orientation = []
 
         # construct and validate CEAs
-        index_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index_full, aligner)
-        index_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.index, aligner)
-        barcode_full_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode_full, aligner)
-        barcode_CEA=ConstructElementAlignment(SeqRecord, DemuxConstruct.barcode, aligner)
+        index_full_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index_full, aligner)
+        index_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index, aligner)
+        barcode_full_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode_full, aligner)
+        barcode_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode, aligner)
 
         self.align_all_ConstructElements([index_full_CEA, index_CEA, barcode_full_CEA, barcode_CEA])
 
@@ -331,7 +354,7 @@ class DemuxConstructAlignment:
     def __str__(self):
 
         str = f'''
-        SeqRecord\t{self.SeqRecord.id}
+        SimpleSeqRecord\t{self.SimpleSeqRecord.id}
         index_CEAP\t{self.index_CEAP}
         barcode_CEAP\t{self.barcode_CEAP}
         '''
@@ -400,15 +423,15 @@ class DemuxConstructAlignment:
         self.valid = True
         return True
 
-    def trim_ConstructElements_from_SeqRecord(self):
+    def trim_ConstructElements_from_SimpleSeqRecord(self):
         '''
-        Use the coordinates from the long CEAs to remove them from the SeqRecord.
+        Use the coordinates from the long CEAs to remove them from the SimpleSeqRecord.
         '''
         # psuedocode
         # get orientation of index_CEAP and barcode_CEAP.
-        # if forward, split the SeqRecord into two separate things and then add them together.
+        # if forward, split the SimpleSeqRecord into two separate things and then add them together.
             # include edge case where the long CEA is on the edge of a sequence
-        # edit the seqrecord, leave everything else unchanged.
+        # edit the SimpleSeqRecord, leave everything else unchanged.
 
         if self.orientation == ['F','R']:
             FSpan = self.index_CEAP.long_CEA.FBoundary.span
@@ -423,7 +446,7 @@ class DemuxConstructAlignment:
 
         # flip RSpan around to compensate for it being taken from the reverse complement
 
-        seq_len=np.int64(len(self.SeqRecord.seq))
+        seq_len=np.int64(len(self.SimpleSeqRecord.seq))
         RSpan[0]=seq_len - RSpan[0]
         RSpan[1]=seq_len - RSpan[1]
 
@@ -434,32 +457,32 @@ class DemuxConstructAlignment:
         #print(f'FSpan:{FSpan}\tRSpan:{RSpan}')
 
         # now we use the cut sites we derived to actually cut the seq
-        first_segment=self.SeqRecord[0:FSpan[0]]
-        second_segment=self.SeqRecord[FSpan[1]:RSpan[0]]
-        third_segment=self.SeqRecord[RSpan[1]:seq_len]
+        first_segment=self.SimpleSeqRecord[0:FSpan[0]]
+        second_segment=self.SimpleSeqRecord[FSpan[1]:RSpan[0]]
+        third_segment=self.SimpleSeqRecord[RSpan[1]:seq_len]
 
-        trim_SeqRecord = first_segment + second_segment + third_segment
-        self.SeqRecord = trim_SeqRecord
+        trim_SimpleSeqRecord = first_segment + second_segment + third_segment
+        self.SimpleSeqRecord = trim_SimpleSeqRecord
         return True
 
 class DemuxxedSample:
     '''
     Represents each individual sample with that has sequence data associated with it.
-    Aggregates SeqRecords from DemuxConstructAlignments that share the same sample_id.
+    Aggregates SimpleSeqRecords from DemuxConstructAlignments that share the same sample_id.
     Uses that information to create a FastqFile by calling that class's method.
     '''
     def __init__(self, sample_id):
         self.sample_id = sample_id
-        self.SeqRecord_lst = []
+        self.SimpleSeqRecord_lst = []
     
-    def gather_SeqRecords_from_DemuxConstructAlignment(self, DemuxConstructAlignment):
+    def gather_SimpleSeqRecords_from_DemuxConstructAlignment(self, DemuxConstructAlignment):
         sample_ids_match = (self.sample_id == DemuxConstructAlignment.DemuxConstruct.sample_id)
         DCA_valid = (DemuxConstructAlignment.valid)
         if (sample_ids_match & DCA_valid):
-            self.SeqRecord_lst.append(DemuxConstructAlignment.SeqRecord)
+            self.SimpleSeqRecord_lst.append(DemuxConstructAlignment.SimpleSeqRecord)
 
     def init_FastqFile_from_Demuxxed_Sample(self, outdir='.'):
-        f = FastqFile(filename = self.sample_id, outdir=outdir, SeqRecord_lst = self.SeqRecord_lst)
+        f = FastqFile(filename = self.sample_id, outdir=outdir, SimpleSeqRecord_lst = self.SimpleSeqRecord_lst)
         return(f)
     
 class FastqFile:
@@ -469,7 +492,7 @@ class FastqFile:
     '''
     format = 'fastq'
 
-    def __init__(self, filename, outdir='.', SeqRecord_lst = []):
+    def __init__(self, filename, outdir='.', SimpleSeqRecord_lst = []):
         if (not filename.endswith('.fq.gz')):
             filename = filename + '.fq.gz'
         self.filename = filename
@@ -477,14 +500,14 @@ class FastqFile:
             outdir = outdir + '/'
         self.outdir = outdir
         self.filepath = f'{self.outdir}{self.filename}'
-        self.SeqRecord_lst = SeqRecord_lst
+        self.SimpleSeqRecord_lst = SimpleSeqRecord_lst
 
-    def append_SeqRecord_to_FastqFile(self, SeqRecord):
+    def append_SimpleSeqRecord_to_FastqFile(self, SimpleSeqRecord):
         '''
-        Appends SeqRecord objects to SeqRecord_arr attribute.
+        Appends SimpleSeqRecord objects to SimpleSeqRecord_arr attribute.
         Thin wrapper around a list.
         '''
-        self.SeqRecord_lst.append(SeqRecord)
+        self.SimpleSeqRecord_lst.append(SimpleSeqRecord)
 
     def write_FastqFile_to_outdir(self):
         '''
@@ -496,7 +519,7 @@ class FastqFile:
             with open(self.filepath, "wb") as outfile, \
                     subprocess.Popen([pigz_path, "-c"], stdin=subprocess.PIPE, stdout=outfile) as proc:
                 with TextIOWrapper(proc.stdin, encoding="utf-8") as handle:
-                    SeqIO.write(self.SeqRecord_lst, handle, self.format)
+                    SeqIO.write(self.SimpleSeqRecord_lst, handle, self.format)
                     handle.flush()
                 proc.stdin.close()
                 proc.wait()
@@ -504,7 +527,7 @@ class FastqFile:
                     raise RuntimeError("pigz failed while writing FASTQ output.")
         else:
             with gzip.open(self.filepath, "wt") as handle:
-                SeqIO.write(self.SeqRecord_lst, handle, self.format)
+                SeqIO.write(self.SimpleSeqRecord_lst, handle, self.format)
 
 # functions
 def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
