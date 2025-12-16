@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from os import path
 from tqdm import tqdm
 import multiprocessing as multi
+from itertools import product
 from src.utils import *
 from src.classes import *
 #import time
@@ -20,50 +21,45 @@ def main():
     parser.add_argument('-p','--prefix', help='Output prefix. Defaults to \'ONTddRADparse_out\' if not set.', type=str, default=f'{default_prefix}_out')
     parser.add_argument('-fa','--fuzzy_aln_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
     parser.add_argument('-ea','--exact_aln_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
-
     args = parser.parse_args()
     print_args(args)
 
     ### PARSE IN FILES
     seq_record_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
-    Demux_df = parse_demux_file(args.demux)
-    DC_lst = convert_demux_df_to_DemuxConstruct_lst(Demux_df, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
-    # fixme - ensure that all DemuxConstruct.sample_ids in this list are unique
+    DC_lst, Demux_df = get_DC_lst(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
     aligner=init_aligner()
-    filter_lst = [
-    'check_all_ConstructElementAlignments_validity',
-    'check_all_ConstructElementAlignments_concatamer_validity',
-    'check_all_ConstructElementAlignmentPairs_validity',
-    'check_DemuxConstructAlignment_validity',
-    ]
 
+    # create the inputs to make DemuxConstructAlignments in parallel
 
-    # init empty lists to keep track of fates of various metrics
-    # separate this list into two.
-    # one loop creates all the DCAs and runs in parallel
-    # the other assesses them for valid/invalid, and can run sequentially
+    input_lst = list(product(seq_record_lst, DC_lst, [aligner]))
+
+    pool = multi.Pool(processes = args.threads)
+    print("Making alignments")
+    DCA_lst = pool.map(make_DCA, tqdm(input_lst))
+    pool.close()
+    pool.join()
+
     seq_record_fate_lst = []
     DCA_lst_valid = []
     DCA_lst_invalid = []
 
-    for seq_record in tqdm(seq_record_lst):
-        for DC in DC_lst:
-            # these three remove all reads which are missing elements, or have individual elements present
-            DCA=DemuxConstructAlignment(seq_record, DC, aligner)
-            for filter in filter_lst:
-                getattr(DCA, filter)()
-                if not DCA.valid:
-                    DCA_lst_invalid.append(DCA)
-                    seq_record_fate_lst.append(['fail', DC.sample_id, seq_record.id, filter])
-                    break
-            # trim DCA I guess
-            if DCA.valid:
-                DCA.trim_ConstructElements_from_SimpleSeqRecord()
-                DCA_lst_valid.append(DCA)
-                seq_record_fate_lst.append(['success', DC.sample_id, seq_record.id, 'all_checks_valid'])
-                break
+    print("Checking alignment validity")
+    for DCA in tqdm(DCA_lst):
+
+        DCA.check_DemuxConstructAlignment_validity()
+
+        if DCA.valid:
+            # trim DCA if valid I guess
+            DCA.trim_ConstructElements_from_SimpleSeqRecord()
+            DCA_lst_valid.append(DCA)
+            seq_record_fate_lst.append(['success', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, 'all_checks_valid'])
+
+        else:
+            DCA_lst_invalid.append(DCA)
+            seq_record_fate_lst.append(['fail', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, filter])
+
 
     # Create one DemuxxedSample for each unique sample_id
     DS_lst = []

@@ -1,4 +1,4 @@
-__all__ = ["convert_demux_df_to_DemuxConstruct_lst", "print_args", "parse_seqfile", "make_outdir", "initialize_df", "parse_demux_file", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates"]
+__all__ = ["print_args", "parse_seqfile", "make_outdir", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates", "get_DC_lst"]
 
 import gzip
 #from Bio import SeqIO
@@ -19,21 +19,20 @@ def print_args(args):
     for key, value in vars(args).items():
         print(f"\t{key}: {value}")
 
-def parse_seqfile(seqfile):
+def parse_seqfile(filepath: str):
     '''
-    Takes in a path to a sequence file (compressed or uncompressed), and a valid string in SeqIO.parse() denoting the file format.
-    Returns a list of all records in the file.
-    Use case of function generally assumed to be to read fasta/fastq files.
+    Takes in a path to a sequence file (compressed or uncompressed).
+    Returns a list of all records in the file as SimpleSeqRecord objects.
     '''
-    encoding = guess_type(seqfile)[1]
+    encoding = guess_type(filepath)[1]
     _open = partial(gzip.open, mode = 'rt') if encoding == 'gzip' else open
     seqfile_lst = []
-    with _open(seqfile) as f:
+    with _open(filepath) as f:
         for id, seq, qual in FastqGeneralIterator(f):
             seqfile_lst.append(SimpleSeqRecord(id, seq, qual))
     return seqfile_lst
 
-def parse_demux_file(filepath):
+def parse_demux_file(filepath: str):
     '''
     Takes in a 5-column TSV file expected to contain a header and checks that columns 2-5 contain only valid DNA nucleotides (A, T, C, G).
     
@@ -82,14 +81,13 @@ def convert_demux_df_to_DemuxConstruct_lst(df: pd.DataFrame, fuzzy_aln_percent: 
         DC_lst.append(DC)    
     return(DC_lst)
 
-def initialize_df(num_rows: int, column_lst: list):
+def get_DC_lst(filepath: str, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
     '''
-    Allocates space for a data frame.
-    Values are given the placeholder value of 'np.NaN' (float) by default.
-    Takes an index and column names as arguments, returns a data frame.
+    Wraps around `parse_demux_file` and `convert_demux_df_to_DemuxConstruct_lst1
     '''
-    df = pd.DataFrame(np.nan, index=np.arange(num_rows), columns=column_lst)
-    return(df)
+    demux_df = parse_demux_file(filepath)
+    DC_lst = convert_demux_df_to_DemuxConstruct_lst(demux_df, fuzzy_aln_percent, exact_aln_percent, buffer)
+    return [DC_lst, demux_df]
 
 def make_outdir(prefix: str):
     '''

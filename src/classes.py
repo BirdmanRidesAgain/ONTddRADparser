@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-__all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target"]
+__all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "make_DCA", "init_aligner", "align_target"]
 
 import gzip
 import subprocess
@@ -71,7 +71,6 @@ class Boundary:
         self.check_Boundary_validity()
         if self.valid:
             self.get_Boundary_span()
-
 
 class SimpleSeqRecord():
     '''
@@ -196,16 +195,15 @@ class ConstructElementAlignment:
         Checks the orientation of each boundary, as well as the length of the construct to determine validity.
         Valid either when XORed or when a short element is aligned in both directions.
         '''
-        # Base rule: valid when exactly one of aligned_in_F_orientation / aligned_in_R_orientation is True (logical XOR)
-        F_orientation = bool(('F' in self.orientation) and ('R' not in self.orientation))
-        R_orientation = bool(('F' not in self.orientation) and ('R' in self.orientation))
-        xor_valid = bool(F_orientation ^ R_orientation)
+        # Base rule: valid when exactly one of aligned_in_orientation_F / aligned_in_orientation_R is True (logical XOR)
+        orientation_F = bool(('F' in self.orientation) and ('R' not in self.orientation))
+        orientation_R = bool(('F' not in self.orientation) and ('R' in self.orientation))
+        xor_valid = bool(orientation_F ^ orientation_R)
 
         # Additional rule: for short constructs, allow both boundaries aligned
-        short_FR_orientation_valid = bool((self.ConstructElement.CE_type == 'short') and ('F' in self.orientation) and ('R' in self.orientation))
+        short_orientation_FR_valid = bool((self.ConstructElement.CE_type == 'short') and ('F' in self.orientation) and ('R' in self.orientation))
 
-        self.valid = xor_valid or short_FR_orientation_valid
-        return True
+        self.valid = xor_valid or short_orientation_FR_valid
 
     def check_ConstructElementAlignment_concatamer_validity(self):
         '''
@@ -235,19 +233,19 @@ class ConstructElementAlignmentPair:
     The short one is around 6-9 bp, and is allowed to exist more than once in the SimpleSeqRecord.
     The long one should only be found once - otherwise, it is a concatamer.
     '''
-    def __init__(self, long_CEA: 'ConstructElementAlignment', short_CEA: 'ConstructElementAlignment'):
-        if long_CEA.SimpleSeqRecord.id != short_CEA.SimpleSeqRecord.id:
+    def __init__(self, CEA_long: 'ConstructElementAlignment', CEA_short: 'ConstructElementAlignment'):
+        if CEA_long.SimpleSeqRecord.id != CEA_short.SimpleSeqRecord.id:
             ValueError("ConstructElementAlignments must be based on the same sequence.")
         self.valid = False
-        self.long_CEA = long_CEA
-        self.short_CEA = short_CEA
+        self.CEA_long = CEA_long
+        self.CEA_short = CEA_short
         self.orientation = [] # can be ['F','R','invalid']
-        self.short_CEA_in_long_CEA = '' # can be T or F
+        self.CEA_short_in_CEA_long = False # can be T or F
     
     def __str__(self):
         str = f'''
         overall_valid\torientation\tshort_CE_inside_long_CE
-        {self.valid}\t{self.orientation}\t{self.short_CEA_in_long_CEA}
+        {self.valid}\t{self.orientation}\t{self.CEA_short_in_CEA_long}
         '''
         return(str)   
 
@@ -256,8 +254,8 @@ class ConstructElementAlignmentPair:
         Determines whether the pair is `F`, `R`, or [], and updates `self.orientation`.
         '''
         for i in ['F','R']:
-            if (i in self.long_CEA.orientation):
-                if (i not in self.short_CEA.orientation):
+            if (i in self.CEA_long.orientation):
+                if (i not in self.CEA_short.orientation):
                     self.orientation = [] # this may not be necessary. But it'll return false in any checks
                     return False
                 self.orientation.append(i)
@@ -269,35 +267,36 @@ class ConstructElementAlignmentPair:
 
     def check_short_ConstructElementAlignment_in_long_ConstructElementAlignment(self):
         '''
-        Performs position checking to ensure that short_CEA is inside long_CEA.
+        Performs position checking to ensure that CEA_short is inside CEA_long.
         '''
         if not self.orientation: # if you didn't have an orientation before, get one first.
             self.valid = self.get_ConstructElementAlignmentPair_orientation()
 
         # now we need to check that the short element is found inside of the long element
         if ('F' in self.orientation):
-            short_span = self.short_CEA.FBoundary.span
-            long_span = self.long_CEA.FBoundary.span
+            short_span = self.CEA_short.FBoundary.span
+            long_span = self.CEA_long.FBoundary.span
         elif ('R' in self.orientation): # now we need to check that the short element is found inside of the long element
-            short_span=self.short_CEA.RBoundary.span
-            long_span=self.long_CEA.RBoundary.span
+            short_span=self.CEA_short.RBoundary.span
+            long_span=self.CEA_long.RBoundary.span
         else:
             # failing here means you have an invalid alignment.
-            self.short_CEA_in_long_CEA = False
+            self.CEA_short_in_CEA_long = False
             return False
             
         if ((short_span[0] < long_span[0]) or (short_span[1] > long_span[1])):
-            self.short_CEA_in_long_CEA = False
+            self.CEA_short_in_CEA_long = False
             return False
-        self.short_CEA_in_long_CEA = True
+        self.CEA_short_in_CEA_long = True
         return True
 
     def check_ConstructElementAlignmentPair_validity(self):
         '''
-        Checks if the CEPA is valid, based on self.orientation and self.short_CEA_in_long_CEA, and updates the self.valid tag.
+        Checks if the CEAP is valid, based on self.orientation and self.CEA_short_in_CEA_long, and updates the self.valid tag.
         '''
-        if self.orientation:
-            if self.short_CEA_in_long_CEA:
+        if not self.orientation:
+            #self.get_ConstructElementAlignmentPair_orientation()
+            if self.CEA_short_in_CEA_long:
                 self.valid = True
                 return True
         self.valid = False
@@ -334,33 +333,36 @@ class DemuxConstructAlignment:
     '''
 
     def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', DemuxConstruct: 'DemuxConstruct', aligner):
+        valid_dict = {
+            'all_CEAs_valid': False,
+            'no_long_CEA_concatamers_valid': False,
+            'CEAs_in_CEAP_same_orientation': False,
+            'CEAs_short_inside_CEAs_long': False,
+            'CEAPs_opposite_orientation': False,
+        }
+        self.valid_dict = valid_dict
+
         self.valid = False     # we initialize validity as false until proven otherwise
         self.SimpleSeqRecord = SimpleSeqRecord
         self.DemuxConstruct = DemuxConstruct
         self.orientation = []
-
+    
         # construct and validate CEAs
-        index_full_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index_full, aligner)
-        index_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index, aligner)
-        barcode_full_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode_full, aligner)
-        barcode_CEA=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode, aligner)
+        CEA_index_full=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index_full, aligner)
+        CEA_index=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index, aligner)
+        CEA_barcode_full=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode_full, aligner)
+        CEA_barcode=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode, aligner)
 
-        self.align_all_ConstructElements([index_full_CEA, index_CEA, barcode_full_CEA, barcode_CEA])
+        self.align_all_ConstructElements([CEA_index_full, CEA_index, CEA_barcode_full, CEA_barcode])
 
-        self.index_CEAP = ConstructElementAlignmentPair(long_CEA=index_full_CEA, short_CEA=index_CEA)
-        self.barcode_CEAP = ConstructElementAlignmentPair(long_CEA=barcode_full_CEA, short_CEA=barcode_CEA)
-        # now get their orientations
-        self.index_CEAP.get_ConstructElementAlignmentPair_orientation()
-        self.index_CEAP.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
-        self.barcode_CEAP.get_ConstructElementAlignmentPair_orientation()
-        self.barcode_CEAP.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
+        self.CEAP_index = ConstructElementAlignmentPair(CEA_long=CEA_index_full, CEA_short=CEA_index)
+        self.CEAP_barcode = ConstructElementAlignmentPair(CEA_long=CEA_barcode_full, CEA_short=CEA_barcode)
 
     def __str__(self):
-
         str = f'''
         SimpleSeqRecord\t{self.SimpleSeqRecord.id}
-        index_CEAP\t{self.index_CEAP}
-        barcode_CEAP\t{self.barcode_CEAP}
+        CEAP_index\t{self.CEAP_index}
+        CEAP_barcode\t{self.CEAP_barcode}
         '''
         return(str)
 
@@ -369,81 +371,116 @@ class DemuxConstructAlignment:
             CEA.align_ConstructElement()
             CEA.check_ConstructElementAlignment_validity()
             if not CEA.valid:
-                break
+                self.valid_dict['all_CEAs_valid'] = False
+                return False
+        self.valid_dict['all_CEAs_valid'] = True
+        return True
 
     def check_all_ConstructElementAlignments_validity(self):
         '''
         Wrapper around ConstructElementAlignment.check_ConstructElementAlignment_validity().
         Ports the logic into the main script so we can weed out SeqQbjects that fail the first line of validation.
         '''
-        CEA_lst = [self.index_CEAP.long_CEA, self.index_CEAP.short_CEA, self.barcode_CEAP.long_CEA, self.barcode_CEAP.short_CEA]
+        CEA_lst = [self.CEAP_index.CEA_long, self.CEAP_index.CEA_short, self.CEAP_barcode.CEA_long, self.CEAP_barcode.CEA_short]
         for CEA in CEA_lst:
             CEA.check_ConstructElementAlignment_validity()
             if not CEA.valid:
-                self.valid = False
+                self.valid_dict['all_CEAs_valid'] = False
                 return False
-            self.valid = True
+        self.valid_dict['all_CEAs_valid'] = True
+        return True
 
     def check_all_ConstructElementAlignments_concatamer_validity(self):
         '''
         Checks validated CEAs for concatamers.
         '''
-        long_CEAs = [self.index_CEAP.long_CEA, self.barcode_CEAP.long_CEA]
-        for long_CEA in long_CEAs:
-            long_CEA.check_ConstructElementAlignment_concatamer_validity()
-            if not long_CEA.valid:
-                self.valid = False
+        CEA_longs = [self.CEAP_index.CEA_long, self.CEAP_barcode.CEA_long]
+        for CEA_long in CEA_longs:
+            CEA_long.check_ConstructElementAlignment_concatamer_validity()
+            if not CEA_long.valid:
+                self.valid_dict['no_long_CEA_concatamers_valid'] = False
                 return False
-            self.valid = True        
+        self.valid_dict['no_long_CEA_concatamers_valid'] = True
+        return True
 
-    def check_all_ConstructElementAlignmentPairs_validity(self):
+    def check_all_ConstructElementAlignmentPairs_orientation_validity(self):
         '''
-        Wrapper around ConstructElementPairAlignment.check_ConstructElementPairAlignment_validity().
-        Assumes that all ConstructElements are valid.
+        Checks that both CEAPs have an orientation. (If there is no orientation, one couldn't be assigned and its false.
         '''
-        CEAPs = [self.index_CEAP, self.barcode_CEAP]
+        CEAPs = [self.CEAP_index, self.CEAP_barcode]
         for CEAP in CEAPs:
-            CEAP.check_ConstructElementAlignmentPair_validity()
-            if not CEAP.valid:
-                self.valid = False
+            CEAP.get_ConstructElementAlignmentPair_orientation()
+            if not CEAP.orientation:
+                self.valid_dict['CEAs_in_CEAP_same_orientation'] = False
                 return False
-            self.valid = True
+        self.valid_dict['CEAs_in_CEAP_same_orientation'] = True
+        return True
 
-    def check_DemuxConstructAlignment_validity(self):
+    def check_all_ConstructElementAlignmentPairs_short_in_long_validity(self):
+        '''
+        Checks that the indices of the short CEA are inside the boundaries of the long one.
+        '''
+        CEAPs = [self.CEAP_index, self.CEAP_barcode]
+        for CEAP in CEAPs:
+            CEAP.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
+            if not CEAP.CEA_short_in_CEA_long:
+                self.valid_dict['CEAs_short_inside_CEAs_long'] = False
+                return False
+        self.valid_dict['CEAs_short_inside_CEAs_long'] = True        
+        return True
+
+    def check_ConstructElementAlignments_opposite_orientation_validity(self):
         '''
         Checks if there are any violations in the interaction of the two CEAPs and updates 'self.valid' as necessary.
         Barcode and index must have alternating orientations.
         '''
-        for i in [self.index_CEAP, self.barcode_CEAP]:
-            if not i.orientation:
-                i.get_ConstructElementAlignmentPair_orientation()
-        if self.index_CEAP.orientation == self.barcode_CEAP.orientation:
-            self.valid = False
-            return False
-        
-        self.orientation.append(self.index_CEAP.orientation)
-        self.orientation.append(self.barcode_CEAP.orientation)
+        for i in [self.CEAP_index, self.CEAP_barcode]:
+            if self.CEAP_index.orientation == self.CEAP_barcode.orientation:
+                self.valid_dict['CEAPs_opposite_orientation'] = False
+                return False
+        self.orientation.append(self.CEAP_index.orientation)
+        self.orientation.append(self.CEAP_barcode.orientation)
         self.orientation = list(chain(*self.orientation))
-        self.valid = True
-        return True
+        self.valid_dict['CEAPs_opposite_orientation'] = True
+        return True           
+
+    def check_DemuxConstructAlignment_validity(self):
+        '''
+        Checks to see if all items in 'valid_dict' are True, and sets the valid tag appropriately.
+        '''
+        filter_lst = [
+        'check_all_ConstructElementAlignments_validity',
+        'check_all_ConstructElementAlignments_concatamer_validity',
+        'check_all_ConstructElementAlignmentPairs_orientation_validity',
+        'check_all_ConstructElementAlignmentPairs_short_in_long_validity',
+        'check_ConstructElementAlignments_opposite_orientation_validity',
+        ]
+
+        for filter in filter_lst:
+            if not getattr(self, filter)():
+                break
+
+        if all(filter_value for filter_value in self.valid_dict.values()):
+            self.valid = True
+            return True
 
     def trim_ConstructElements_from_SimpleSeqRecord(self):
         '''
         Use the coordinates from the long CEAs to remove them from the SimpleSeqRecord.
         '''
         # psuedocode
-        # get orientation of index_CEAP and barcode_CEAP.
+        # get orientation of CEAP_index and CEAP_barcode.
         # if forward, split the SimpleSeqRecord into two separate things and then add them together.
             # include edge case where the long CEA is on the edge of a sequence
         # edit the SimpleSeqRecord, leave everything else unchanged.
 
         if self.orientation == ['F','R']:
-            FSpan = self.index_CEAP.long_CEA.FBoundary.span
-            RSpan = self.barcode_CEAP.long_CEA.RBoundary.span
+            FSpan = self.CEAP_index.CEA_long.FBoundary.span
+            RSpan = self.CEAP_barcode.CEA_long.RBoundary.span
 
         elif self.orientation == ['R','F']:
-            FSpan = self.barcode_CEAP.long_CEA.FBoundary.span
-            RSpan = self.index_CEAP.long_CEA.RBoundary.span
+            FSpan = self.CEAP_barcode.CEA_long.FBoundary.span
+            RSpan = self.CEAP_index.CEA_long.RBoundary.span
 
         else:
             ValueError("Orientation is invalid for DCA")
@@ -543,6 +580,16 @@ class FastqFile:
                 SeqIO.write(self.SimpleSeqRecord_lst, handle, self.format)
 
 # functions
+
+def make_DCA(input_lst: list):
+    '''
+    A wrapper around the default constructor for `DemuxConstructAlignment`.
+    Takes a list of tuples as input, making it more amenable to multiprocessing.
+    '''
+    DCA=DemuxConstructAlignment(input_lst[0], input_lst[1], input_lst[2])
+    return(DCA)
+
+
 def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
     # Generic aligner we'll initialize once
     # We penalize opening gaps because our markers should theoretically be one group
