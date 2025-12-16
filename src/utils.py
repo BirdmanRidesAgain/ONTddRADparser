@@ -1,4 +1,4 @@
-__all__ = ["print_args", "parse_seqfile", "make_outdir", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates", "get_DC_lst"]
+__all__ = ["print_args", "parse_seqfile", "make_outdir", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates", "get_DC_dict", "chunk_input_lst"]
 
 import gzip
 #from Bio import SeqIO
@@ -10,6 +10,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 import os
+from collections import defaultdict
 import pandas as pd
 from src.classes import *
 
@@ -67,27 +68,35 @@ def parse_demux_file(filepath: str):
             )
     return df
 
-def convert_demux_df_to_DemuxConstruct_lst(df: pd.DataFrame, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
-    DC_lst = []
+def convert_demux_df_to_DemuxConstruct_dict(df: pd.DataFrame, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
+    '''
+    Ingests a data frame and converts it to a dictionary object organized by sample_id.
+    The values are a list of DCs, allowing multiple DCs per sample_id.
+    '''
+    # Build mapping from sample_id to associated barcode/index values
+    DC_dict = defaultdict(list)
+    # Group the DataFrame by sample_id, and for each group, iterate over all rows (values)
+    for sample_id, group_df in df.groupby('sample_id'):
+        sample_id_lst = []
+        for _, row in group_df.iterrows():
+            index_full_CE = ConstructElement(row['index_full'], 'long', fuzzy_aln_percent, buffer)
+            index_CE = ConstructElement(row['index'], 'short', exact_aln_percent)
+            barcode_full_CE = ConstructElement(row['barcode_full'], 'long', fuzzy_aln_percent, buffer)
+            barcode_CE = ConstructElement(row['barcode'], 'short', exact_aln_percent)
+            DC = DemuxConstruct(sample_id, index_full_CE, index_CE, barcode_full_CE, barcode_CE)
+            sample_id_lst.append(DC)        
+        # We append,
+        DC_dict[row['sample_id']] = sample_id_lst
 
-    for index, row in df.iterrows():
-        sample_id = row.iloc[0]
-        index_full_CE=ConstructElement(row.iloc[1], 'long', fuzzy_aln_percent, buffer)
-        index_CE=ConstructElement(row.iloc[2], 'short', exact_aln_percent)
-        barcode_full_CE=ConstructElement(row.iloc[3], 'long', fuzzy_aln_percent, buffer)
-        barcode_CE=ConstructElement(row.iloc[4], 'short', exact_aln_percent)
+    return DC_dict
 
-        DC=DemuxConstruct(sample_id, index_full_CE, index_CE, barcode_full_CE, barcode_CE)
-        DC_lst.append(DC)    
-    return(DC_lst)
-
-def get_DC_lst(filepath: str, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
+def get_DC_dict(filepath: str, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
     '''
     Wraps around `parse_demux_file` and `convert_demux_df_to_DemuxConstruct_lst1
     '''
     demux_df = parse_demux_file(filepath)
-    DC_lst = convert_demux_df_to_DemuxConstruct_lst(demux_df, fuzzy_aln_percent, exact_aln_percent, buffer)
-    return [DC_lst, demux_df]
+    DC_dict = convert_demux_df_to_DemuxConstruct_dict(demux_df, fuzzy_aln_percent, exact_aln_percent, buffer)
+    return DC_dict
 
 def make_outdir(prefix: str):
     '''
@@ -136,3 +145,11 @@ def plot_SeqRecordFates(df: pd.DataFrame):
 
     fig.add_axes(ax)
     return fig
+
+def chunk_input_lst(lst: list, n_rds: int = 10000):
+    '''
+    Splits the incoming input_lst into groups of n iterations.
+    We define 'n' arbitrarily as 10000 - I am unsure what the optimal value is.
+
+    We are doing this to prevent 
+    '''

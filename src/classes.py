@@ -235,7 +235,7 @@ class ConstructElementAlignmentPair:
     '''
     def __init__(self, CEA_long: 'ConstructElementAlignment', CEA_short: 'ConstructElementAlignment'):
         if CEA_long.SimpleSeqRecord.id != CEA_short.SimpleSeqRecord.id:
-            ValueError("ConstructElementAlignments must be based on the same sequence.")
+            raise ValueError("ConstructElementAlignments must be based on the same sequence.")
         self.valid = False
         self.CEA_long = CEA_long
         self.CEA_short = CEA_short
@@ -253,6 +253,8 @@ class ConstructElementAlignmentPair:
         '''
         Determines whether the pair is `F`, `R`, or [], and updates `self.orientation`.
         '''
+        if len(self.orientation) == 2:
+            raise ValueError("You are trying to get the orientation of something that already has been oriented.")
         for i in ['F','R']:
             if (i in self.CEA_long.orientation):
                 if (i not in self.CEA_short.orientation):
@@ -270,7 +272,7 @@ class ConstructElementAlignmentPair:
         Performs position checking to ensure that CEA_short is inside CEA_long.
         '''
         if not self.orientation: # if you didn't have an orientation before, get one first.
-            self.valid = self.get_ConstructElementAlignmentPair_orientation()
+            self.get_ConstructElementAlignmentPair_orientation()
 
         # now we need to check that the short element is found inside of the long element
         if ('F' in self.orientation):
@@ -357,6 +359,12 @@ class DemuxConstructAlignment:
 
         self.CEAP_index = ConstructElementAlignmentPair(CEA_long=CEA_index_full, CEA_short=CEA_index)
         self.CEAP_barcode = ConstructElementAlignmentPair(CEA_long=CEA_barcode_full, CEA_short=CEA_barcode)
+        self.CEAP_index.get_ConstructElementAlignmentPair_orientation()
+        self.CEAP_barcode.get_ConstructElementAlignmentPair_orientation()
+        self.CEAP_index.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
+        self.CEAP_barcode.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
+
+
 
     def __str__(self):
         str = f'''
@@ -409,7 +417,6 @@ class DemuxConstructAlignment:
         '''
         CEAPs = [self.CEAP_index, self.CEAP_barcode]
         for CEAP in CEAPs:
-            CEAP.get_ConstructElementAlignmentPair_orientation()
             if not CEAP.orientation:
                 self.valid_dict['CEAs_in_CEAP_same_orientation'] = False
                 return False
@@ -422,7 +429,6 @@ class DemuxConstructAlignment:
         '''
         CEAPs = [self.CEAP_index, self.CEAP_barcode]
         for CEAP in CEAPs:
-            CEAP.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
             if not CEAP.CEA_short_in_CEA_long:
                 self.valid_dict['CEAs_short_inside_CEAs_long'] = False
                 return False
@@ -483,7 +489,7 @@ class DemuxConstructAlignment:
             RSpan = self.CEAP_index.CEA_long.RBoundary.span
 
         else:
-            ValueError("Orientation is invalid for DCA")
+            raise ValueError("Orientation is invalid for DCA")
 
         # flip RSpan around to compensate for it being taken from the reverse complement
 
@@ -586,7 +592,17 @@ def make_DCA(input_lst: list):
     A wrapper around the default constructor for `DemuxConstructAlignment`.
     Takes a list of tuples as input, making it more amenable to multiprocessing.
     '''
-    DCA=DemuxConstructAlignment(input_lst[0], input_lst[1], input_lst[2])
+    # renaming shit so humans can interpret this
+    simple_seq_record = input_lst[0]
+    DC_dict = input_lst[1]
+    aligner = input_lst[2]
+
+    for sample_id, DC_lst in DC_dict.items():
+        for DC in DC_lst:
+            DCA=DemuxConstructAlignment(simple_seq_record, DC, aligner)
+            DCA.check_DemuxConstructAlignment_validity()
+            if DCA.valid:
+                return(DCA)
     return(DCA)
 
 

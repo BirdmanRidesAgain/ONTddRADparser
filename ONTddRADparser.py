@@ -26,18 +26,19 @@ def main():
 
     ### PARSE IN FILES
     print("Reading in sequences")
-    seq_record_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
-    DC_lst, Demux_df = get_DC_lst(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
+    SimpleSeqRecord_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
+    # we want to chunk up the seq_record_lst into smaller items.
+
+    DC_dict = get_DC_dict(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
     aligner=init_aligner()
 
     # create the inputs to make DemuxConstructAlignments in parallel
 
-    input_lst = list(product(seq_record_lst, DC_lst, [aligner]))
-
-    pool = multi.Pool(processes = args.threads)
     print("Making alignments")
+    input_lst = list(product(SimpleSeqRecord_lst, [DC_dict], [aligner]))
+    pool = multi.Pool(processes = args.threads)
     DCA_lst = pool.map(make_DCA, tqdm(input_lst))
     pool.close()
     pool.join()
@@ -48,9 +49,6 @@ def main():
 
     print("Checking alignment validity")
     for DCA in tqdm(DCA_lst):
-
-        DCA.check_DemuxConstructAlignment_validity()
-
         if DCA.valid:
             # trim DCA if valid I guess
             DCA.trim_ConstructElements_from_SimpleSeqRecord()
@@ -65,7 +63,7 @@ def main():
     # Create one DemuxxedSample for each unique sample_id
     DS_lst = []
     DS_dict = {}
-    for sample_id in Demux_df['sample_id'].unique():
+    for sample_id in DC_dict.keys():
         DS = DemuxxedSample(sample_id)
         DS_lst.append(DS)
         DS_dict[sample_id] = DS
