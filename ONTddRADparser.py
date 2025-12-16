@@ -25,6 +25,7 @@ def main():
     print_args(args)
 
     ### PARSE IN FILES
+    print("Reading in sequences")
     seq_record_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
     DC_lst, Demux_df = get_DC_lst(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
 
@@ -41,7 +42,7 @@ def main():
     pool.close()
     pool.join()
 
-    seq_record_fate_lst = []
+    SimpleSeqRecord_fate_lst = []
     DCA_lst_valid = []
     DCA_lst_invalid = []
 
@@ -54,11 +55,11 @@ def main():
             # trim DCA if valid I guess
             DCA.trim_ConstructElements_from_SimpleSeqRecord()
             DCA_lst_valid.append(DCA)
-            seq_record_fate_lst.append(['success', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, 'all_checks_valid'])
+            SimpleSeqRecord_fate_lst.append(['success', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, 'all_checks_valid'])
 
         else:
             DCA_lst_invalid.append(DCA)
-            seq_record_fate_lst.append(['fail', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, filter])
+            SimpleSeqRecord_fate_lst.append(['fail', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, filter])
 
 
     # Create one DemuxxedSample for each unique sample_id
@@ -79,7 +80,7 @@ def main():
     outdir = make_outdir(args.prefix)
 
     # write the fates of all sequences + a plot of them to 'outdir'
-    barplot = calc_SimpleSeqRecordFates_stats(seq_record_fate_lst, outdir)
+    barplot = calc_SimpleSeqRecordFates_stats(SimpleSeqRecord_fate_lst, outdir)
 
 
     # and write FastqFiles for each demuxxed sample
