@@ -29,7 +29,7 @@ def main():
     SimpleSeqRecord_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
     # we want to chunk up the seq_record_lst into smaller items.
 
-    DC_dict = get_DC_dict(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
+    sample_id_dict = make_sample_id_dict(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
 
     ### init aligner to avoid having to recreate it every time we call DemuxAlignment
     aligner=init_aligner()
@@ -38,16 +38,15 @@ def main():
 
     print("Making alignments")
     DCA_lst=[]
-    chunk_size = 10000 # this is an arbitrary number
+    chunk_size = 1000 # this is an arbitrary number
     if len(SimpleSeqRecord_lst) > chunk_size:
         print(f"\tLarge input. Running a burnin of {chunk_size} replicates to optimize alignment order.")
-        DC_dict=optimize_DC_dict_order(SimpleSeqRecord_lst, chunk_size, DC_dict, aligner)
+        sample_id_dict=optimize_sample_id_dict_order(SimpleSeqRecord_lst, chunk_size, sample_id_dict, aligner)
 
-    input_lst = list(product(SimpleSeqRecord_lst, [DC_dict], [aligner]))
-    SimpleSeqRecord_fate_lst = []
+    input_lst = list(product(SimpleSeqRecord_lst, [sample_id_dict], [aligner]))
     DCA_lst_valid = []
-    DCA_lst_invalid = []
 
+    # the program is going to spend 95% of its time right in this block.
     input_lst_of_lsts = chunk_input_lst(input_lst, chunk_size)
     pool = multi.Pool(processes = args.threads)
     for tranche in tqdm(input_lst_of_lsts):
@@ -57,26 +56,38 @@ def main():
     pool.join()
 
 
+    # now, we create a list of valid DCAs and plot them.
     print("Checking alignment validity")
+    # we initialize this dict so we can 
+    sample_id_dict['NA'] = [[], []] # We add this key in to account for failed sequences.
+    failure_dict = {} # empty dict; will contain all seqid of failed reads, plus their filter values
+
     for DCA in tqdm(DCA_lst):
         if DCA.valid:
             # trim DCA if valid I guess
-            DCA.trim_ConstructElements_from_SimpleSeqRecord()
+            sample_id_dict[DCA.DemuxConstruct.sample_id][0].append(DCA.SimpleSeqRecord.id)
             DCA_lst_valid.append(DCA)
-            SimpleSeqRecord_fate_lst.append(['success', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, 'all_checks_valid'])
-
         else:
-            DCA_lst_invalid.append(DCA)
-            SimpleSeqRecord_fate_lst.append(['fail', DCA.DemuxConstruct.sample_id, DCA.SimpleSeqRecord.id, filter])
+            # this records all the info we have for the failed seqs. there are two dicts b/c 'filter' isn't relevant for successes
+            sample_id_dict['NA'][0].append(DCA.SimpleSeqRecord.id)
+            failure_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict
 
 
+    # Begin writing plots and FQs to outdir
+    outdir = make_outdir(args.prefix)
     # Create one DemuxxedSample for each unique sample_id
     DS_lst = []
     DS_dict = {}
-    for sample_id in DC_dict.keys():
+    for sample_id in sample_id_dict.keys():
         DS = DemuxxedSample(sample_id)
         DS_lst.append(DS)
         DS_dict[sample_id] = DS
+
+    # and write FastqFiles for each demuxxed sample
+    for DS in DS_lst:
+        fastq_file = DS.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
+        fastq_file.write_FastqFile_to_outdir()
+
 
     # Scan through all DemuxConstructAlignment objects and gather SimpleSeqRecords
     for DCA in DCA_lst_valid:
@@ -84,17 +95,10 @@ def main():
         if sample_id in DS_dict:
             DS_dict[sample_id].gather_SimpleSeqRecords_from_DemuxConstructAlignment(DCA)
 
-    # Create output directory to write outputs to
-    outdir = make_outdir(args.prefix)
-
     # write the fates of all sequences + a plot of them to 'outdir'
     barplot = calc_SimpleSeqRecordFates_stats(SimpleSeqRecord_fate_lst, outdir)
 
 
-    # and write FastqFiles for each demuxxed sample
-    for DS in DS_lst:
-        fastq_file = DS.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
-        fastq_file.write_FastqFile_to_outdir()
 
 
 # If this is being imported
