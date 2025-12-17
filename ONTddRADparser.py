@@ -38,7 +38,7 @@ def main():
 
     print("Making alignments")
     DCA_lst=[]
-    chunk_size = 1000 # this is an arbitrary number
+    chunk_size = 10000 # this is an arbitrary number
     if len(SimpleSeqRecord_lst) > chunk_size:
         print(f"\tLarge input. Running a burnin of {chunk_size} replicates to optimize alignment order.")
         sample_id_dict=optimize_sample_id_dict_order(SimpleSeqRecord_lst, chunk_size, sample_id_dict, aligner)
@@ -56,47 +56,31 @@ def main():
     pool.join()
 
 
-    # now, we create a list of valid DCAs and plot them.
+    # now, we get sumstats for all the DCAs we've made
     print("Checking alignment validity")
     # we initialize this dict so we can 
-    sample_id_dict['NA'] = [[], []] # We add this key in to account for failed sequences.
-    failure_dict = {} # empty dict; will contain all seqid of failed reads, plus their filter values
-
-    for DCA in tqdm(DCA_lst):
-        if DCA.valid:
-            # trim DCA if valid I guess
-            sample_id_dict[DCA.DemuxConstruct.sample_id][0].append(DCA.SimpleSeqRecord.id)
-            DCA_lst_valid.append(DCA)
-        else:
-            # this records all the info we have for the failed seqs. there are two dicts b/c 'filter' isn't relevant for successes
-            sample_id_dict['NA'][0].append(DCA.SimpleSeqRecord.id)
-            failure_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict
-
+    sample_id_dict, failure_dict = split_DCA_lst(sample_id_dict, DCA_lst)
 
     # Begin writing plots and FQs to outdir
     outdir = make_outdir(args.prefix)
     # Create one DemuxxedSample for each unique sample_id
     DS_lst = []
-    DS_dict = {}
-    for sample_id in sample_id_dict.keys():
-        DS = DemuxxedSample(sample_id)
-        DS_lst.append(DS)
-        DS_dict[sample_id] = DS
-
-    # and write FastqFiles for each demuxxed sample
-    for DS in DS_lst:
+    for sample_id, sample_id_info in sample_id_dict.items():
+        DemuxxedSample(sample_id, )
+        # FIXME - you need to rework this so that it *actually* attaches the demuxsample_lst to the DemuxSample object.
+        # rework the gather_SimpleSeqRecords_from_DemuxConstructAlignment method to work with the dict you put together
+        DS = DemuxxedSample(sample_id, sample_id_info[1])
         fastq_file = DS.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
         fastq_file.write_FastqFile_to_outdir()
 
-
-    # Scan through all DemuxConstructAlignment objects and gather SimpleSeqRecords
-    for DCA in DCA_lst_valid:
-        sample_id = DCA.DemuxConstruct.sample_id
-        if sample_id in DS_dict:
-            DS_dict[sample_id].gather_SimpleSeqRecords_from_DemuxConstructAlignment(DCA)
-
-    # write the fates of all sequences + a plot of them to 'outdir'
-    barplot = calc_SimpleSeqRecordFates_stats(SimpleSeqRecord_fate_lst, outdir)
+    ## Scan through all DemuxConstructAlignment objects and gather SimpleSeqRecords
+    #for DCA in DCA_lst_valid:
+    #    sample_id = DCA.DemuxConstruct.sample_id
+    #    if sample_id in DS_dict:
+    #        DS_dict[sample_id].gather_SimpleSeqRecords_from_DemuxConstructAlignment(DCA)
+#
+    ## write the fates of all sequences + a plot of them to 'outdir'
+    #barplot = calc_SimpleSeqRecordFates_stats(SimpleSeqRecord_fate_lst, outdir)
 
 
 

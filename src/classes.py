@@ -469,7 +469,7 @@ class DemuxConstructAlignment:
             self.valid = True
             return True
 
-    def trim_ConstructElements_from_SimpleSeqRecord(self):
+    def trim_ConstructElements_out_of_SimpleSeqRecord(self):
         '''
         Use the coordinates from the long CEAs to remove them from the SimpleSeqRecord.
         '''
@@ -524,15 +524,10 @@ class DemuxxedSample:
     Aggregates SimpleSeqRecords from DemuxConstructAlignments that share the same sample_id.
     Uses that information to create a FastqFile by calling that class's method.
     '''
-    def __init__(self, sample_id):
+    def __init__(self, sample_id, SimpleSeqRecord_lst: list = []):
         self.sample_id = sample_id
-        self.SimpleSeqRecord_lst = []
+        self.SimpleSeqRecord_lst = SimpleSeqRecord_lst
     
-    def gather_SimpleSeqRecords_from_DemuxConstructAlignment(self, DemuxConstructAlignment):
-        sample_ids_match = (self.sample_id == DemuxConstructAlignment.DemuxConstruct.sample_id)
-        DCA_valid = (DemuxConstructAlignment.valid)
-        if (sample_ids_match & DCA_valid):
-            self.SimpleSeqRecord_lst.append(DemuxConstructAlignment.SimpleSeqRecord)
 
     def init_FastqFile_from_Demuxxed_Sample(self, outdir='.'):
         f = FastqFile(filename = self.sample_id, outdir=outdir, SimpleSeqRecord_lst = self.SimpleSeqRecord_lst)
@@ -554,13 +549,6 @@ class FastqFile:
         self.outdir = outdir
         self.filepath = f'{self.outdir}{self.filename}'
         self.SimpleSeqRecord_lst = SimpleSeqRecord_lst
-
-    def append_SimpleSeqRecord_to_FastqFile(self, SimpleSeqRecord):
-        '''
-        Appends SimpleSeqRecord objects to SimpleSeqRecord_arr attribute.
-        Thin wrapper around a list.
-        '''
-        self.SimpleSeqRecord_lst.append(SimpleSeqRecord)
 
     def write_FastqFile_to_outdir(self):
         '''

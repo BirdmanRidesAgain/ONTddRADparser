@@ -1,4 +1,4 @@
-__all__ = ["print_args", "parse_seqfile", "make_outdir", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA"]
+__all__ = ["print_args", "parse_seqfile", "make_outdir", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst"]
 
 import gzip
 #from Bio import SeqIO
@@ -77,7 +77,7 @@ def convert_demux_df_to_DemuxConstruct_dict(df: pd.DataFrame, fuzzy_aln_percent:
     sample_id_dict = defaultdict(list)
     # Group the DataFrame by sample_id, and for each group, iterate over all rows (values)
     for sample_id, group_df in df.groupby('sample_id'):
-        sample_id_lst = [] # these are both initialized as empty
+        DCs_in_sample_id_lst = [] # these are both initialized as empty
         demuxxed_seq_ids = []
         for _, row in group_df.iterrows():
             index_full_CE = ConstructElement(row['index_full'], 'long', fuzzy_aln_percent, buffer)
@@ -85,9 +85,9 @@ def convert_demux_df_to_DemuxConstruct_dict(df: pd.DataFrame, fuzzy_aln_percent:
             barcode_full_CE = ConstructElement(row['barcode_full'], 'long', fuzzy_aln_percent, buffer)
             barcode_CE = ConstructElement(row['barcode'], 'short', exact_aln_percent)
             DC = DemuxConstruct(sample_id, index_full_CE, index_CE, barcode_full_CE, barcode_CE)
-            sample_id_lst.append(DC) 
+            DCs_in_sample_id_lst.append(DC) 
         # initialize the seqs demuxxed as an empty list
-        sample_id_dict[row['sample_id']] = [demuxxed_seq_ids, sample_id_lst]
+        sample_id_dict[row['sample_id']] = [DCs_in_sample_id_lst, demuxxed_seq_ids]
     return sample_id_dict
 
 def make_sample_id_dict(filepath: str, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
@@ -175,16 +175,16 @@ def make_DCA(input_lst: list):
     '''
     # renaming shit so humans can interpret this
     simple_seq_record = input_lst[0]
-    DC_dict = input_lst[1]
+    sample_id_dict = input_lst[1]
     aligner = input_lst[2]
 
-    for sample_id, sample_id_info in DC_dict.items():
-        DC_lst=sample_id_info[1]
+    for sample_id, sample_id_info in sample_id_dict.items():
+        DC_lst=sample_id_info[0]
         for DC in DC_lst:
             DCA=DemuxConstructAlignment(simple_seq_record, DC, aligner)
             DCA.check_DemuxConstructAlignment_validity()
             if DCA.valid:
-                DCA.trim_ConstructElements_from_SimpleSeqRecord()
+                DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
                 return(DCA)
     return(DCA) # you have to return the invalid ones to see why they failed
 
@@ -197,13 +197,33 @@ def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_
     random.seed(a=n_samples)
     for SimpleSeqRecord in tqdm(random.sample(SimpleSeqRecord_lst, n_samples)):
         for sample_id, sample_id_info in id_dict.items():
-            DC_lst=sample_id_info[1]
+            DC_lst=sample_id_info[0]
             for DC in DC_lst:
                 DCA=DemuxConstructAlignment(SimpleSeqRecord, DC, aligner)
                 DCA.check_DemuxConstructAlignment_validity()
                 if DCA.valid:
-                    id_dict[sample_id][0].append(DCA.SimpleSeqRecord.id)
+                    id_dict[sample_id][1].append(DCA.SimpleSeqRecord.id)
     # code to sort the DC_dict
     # Sort based on reverse of Values
-    id_dict_sorted = {k: v for k, v in sorted(id_dict.items(), key=lambda item: len(item[1][0]), reverse=True)}    
-    return id_dict_sorted
+    sample_id_dict_sorted = {k: v for k, v in sorted(id_dict.items(), key=lambda item: len(item[1][1]), reverse=True)}    
+    return sample_id_dict_sorted
+
+def split_DCA_lst(sample_id_dict: dict, DCA_lst: list):
+    '''
+    Takes in the sample_id_dict and divides it into successes (which can be assigned a sample_id) and failures (which cannot).
+    
+    Returns a 'success' and a 'failure' dict.
+    Which is weird, but...
+    '''
+    sample_id_dict['NA'] = [[], []] # We add this key in to account for failed sequences.
+    failure_dict = {} # empty dict; will contain all seqid of failed reads, plus their filter values. we want to know why they failed
+    
+    for DCA in tqdm(DCA_lst):
+        if DCA.valid:
+            sample_id_dict[DCA.DemuxConstruct.sample_id][1].append(DCA.SimpleSeqRecord)
+        else:
+            # this records all the info we have for the failed seqs.
+            sample_id_dict['NA'][1].append(DCA.SimpleSeqRecord)
+            failure_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict # this is a separate dict b/c it corresponds to plot 2, which has a different schema
+
+    return [sample_id_dict, failure_dict]
