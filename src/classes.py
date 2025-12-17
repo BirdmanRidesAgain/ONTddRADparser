@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-__all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "make_DCA", "init_aligner", "align_target"]
+__all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "make_DCA", "init_aligner", "align_target", "optimize_DC_dict_order"]
 
 import gzip
 import subprocess
 from io import TextIOWrapper
 from shutil import which
 from itertools import chain 
-
+import random
+from tqdm import tqdm
 import numpy as np
 from Bio import Align
 from Bio import SeqIO
@@ -607,6 +608,25 @@ def make_DCA(input_lst: list):
                 return(DCA)
     return(DCA)
 
+def optimize_DC_dict_order(SimpleSeqRecord_lst: list, n_samples: int, DC_dict: dict, aligner):
+    '''
+    Gets the probability distribution of sample_ids in the `DC_dict` by classifying `n_samples`.
+    Returns an ordered dict.
+    '''
+    # code that optimizes how the dict is constructed
+    random.seed(a=n_samples)
+    for SimpleSeqRecord in tqdm(random.sample(SimpleSeqRecord_lst, n_samples)):
+        for sample_id, sample_id_info in DC_dict.items():
+            DC_lst=sample_id_info[1]
+            for DC in DC_lst:
+                DCA=DemuxConstructAlignment(SimpleSeqRecord, DC, aligner)
+                DCA.check_DemuxConstructAlignment_validity()
+                if DCA.valid:
+                    DC_dict[sample_id][0] += 1
+    # code to sort the DC_dict
+    # Sort based on reverse of Values
+    DC_dict_sorted = {k: v for k, v in sorted(DC_dict.items(), key=lambda item: item[1][0], reverse=True)}    
+    return DC_dict_sorted
 
 def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
     # Generic aligner we'll initialize once

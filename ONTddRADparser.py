@@ -40,8 +40,8 @@ def main():
     DCA_lst=[]
     chunk_size = 10000 # this is an arbitrary number
     if len(SimpleSeqRecord_lst) > chunk_size:
-        print("Large input. Running burnin to optimize alignments.")
-        # code that optimizes how the dict is constructed
+        print(f"\tLarge input. Running a burnin of {chunk_size} replicates to optimize alignment order.")
+        DC_dict=optimize_DC_dict_order(SimpleSeqRecord_lst, chunk_size, DC_dict, aligner)
 
     input_lst = list(product(SimpleSeqRecord_lst, [DC_dict], [aligner]))
     SimpleSeqRecord_fate_lst = []
