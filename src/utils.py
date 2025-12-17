@@ -84,9 +84,11 @@ def convert_demux_df_to_DemuxConstruct_dict(df: pd.DataFrame, fuzzy_aln_percent:
             barcode_full_CE = ConstructElement(row['barcode_full'], 'long', fuzzy_aln_percent, buffer)
             barcode_CE = ConstructElement(row['barcode'], 'short', exact_aln_percent)
             DC = DemuxConstruct(sample_id, index_full_CE, index_CE, barcode_full_CE, barcode_CE)
-            sample_id_lst.append(DC)        
-        # We append,
-        DC_dict[row['sample_id']] = sample_id_lst
+            sample_id_lst.append(DC) 
+
+        # initialize the number of seqs demuxxed at 0 and add the list
+        num_seqs_demuxxed_in_sample_id = 0
+        DC_dict[row['sample_id']] = [num_seqs_demuxxed_in_sample_id, sample_id_lst] #
 
     return DC_dict
 
@@ -151,5 +153,7 @@ def chunk_input_lst(lst: list, n_rds: int = 10000):
     Splits the incoming input_lst into groups of n iterations.
     We define 'n' arbitrarily as 10000 - I am unsure what the optimal value is.
 
-    We are doing this to prevent 
+    We are doing this to prevent the pooled processes from stalling.
     '''
+    input_list_of_lists = [lst[i:i + n_rds] for i in range(0, len(lst), n_rds)]
+    return input_list_of_lists

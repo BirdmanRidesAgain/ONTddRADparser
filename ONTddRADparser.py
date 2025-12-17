@@ -37,15 +37,25 @@ def main():
     # create the inputs to make DemuxConstructAlignments in parallel
 
     print("Making alignments")
-    input_lst = list(product(SimpleSeqRecord_lst, [DC_dict], [aligner]))
-    pool = multi.Pool(processes = args.threads)
-    DCA_lst = pool.map(make_DCA, tqdm(input_lst))
-    pool.close()
-    pool.join()
+    DCA_lst=[]
+    chunk_size = 10000 # this is an arbitrary number
+    if len(SimpleSeqRecord_lst) > chunk_size:
+        print("Large input. Running burnin to optimize alignments.")
+        # code that optimizes how the dict is constructed
 
+    input_lst = list(product(SimpleSeqRecord_lst, [DC_dict], [aligner]))
     SimpleSeqRecord_fate_lst = []
     DCA_lst_valid = []
     DCA_lst_invalid = []
+
+    input_lst_of_lsts = chunk_input_lst(input_lst, chunk_size)
+    pool = multi.Pool(processes = args.threads)
+    for tranche in tqdm(input_lst_of_lsts):
+        DCA_sublst = pool.map(make_DCA, tranche)
+        DCA_lst.extend(DCA_sublst)
+    pool.close()
+    pool.join()
+
 
     print("Checking alignment validity")
     for DCA in tqdm(DCA_lst):

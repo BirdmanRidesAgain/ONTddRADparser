@@ -597,11 +597,13 @@ def make_DCA(input_lst: list):
     DC_dict = input_lst[1]
     aligner = input_lst[2]
 
-    for sample_id, DC_lst in DC_dict.items():
+    for sample_id, sample_id_info in DC_dict.items():
+        DC_lst=sample_id_info[1]
         for DC in DC_lst:
             DCA=DemuxConstructAlignment(simple_seq_record, DC, aligner)
             DCA.check_DemuxConstructAlignment_validity()
             if DCA.valid:
+                DC_dict[sample_id][0] += 1
                 return(DCA)
     return(DCA)
 
