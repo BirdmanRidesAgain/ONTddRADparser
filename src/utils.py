@@ -128,7 +128,7 @@ def calc_SimpleSeqRecordFates_stats(fate_lst: list, outdir: str):
     barplot = plot_SeqRecordFates(outcome_seqs_df)
 
     outcome_seqs_df.to_csv(f'{outdir}/ONTddRADparser_all_filter_stats.tsv', sep = "\t")
-    barplot.savefig(f'{outdir}/ONTddRADparser_demult_success.png')
+    barplot.savefig(f'{outdir}/ONTddRADparser_demult_success.png', dpi=300)
 
     return(barplot)
 
@@ -141,9 +141,21 @@ def plot_SeqRecordFates(df: pd.DataFrame):
         df,
         x='sample_id', y='count'
     )
-    ax.set_xlabel('Sample IDs (bins)')
-    ax.set_ylabel('Number of reads')
-    ax.set_title('Successfully demultiplexed reads per sample', loc='left')
+    for container in ax.containers:
+        ax.bar_label(container, fmt='%d', padding=3, fontsize=12)
+    ax.grid(True, axis='y', linestyle='--', alpha=0.5)
+
+    # add labels
+    label_font = {'fontsize':14,'fontweight':'bold'}
+    ax.set_xlabel('Sample IDs (bins)',fontdict=label_font)
+    ax.set_ylabel('Number of reads',fontdict=label_font)
+    ax.tick_params(axis='x', labelrotation=45)
+    ax.set_title(
+        'Successfully demultiplexed reads per sample',
+        loc='left',
+        fontsize=16,
+        fontweight='bold'
+    )
 
     fig.add_axes(ax)
     return fig
