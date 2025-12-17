@@ -644,7 +644,7 @@ def align_target(seq: Seq, subseq: Seq, aligner: Align.PairwiseAligner, aln_perc
     Returns a tuple of the start and end indices of 'subseq' to 'seq'.
     Returns a list of two indices which can be formatted to a Boundary object.
     '''
-    aligner.target_end_gap_score = aligner.query_end_gap_score = 0.0
+    aligner.end_insertion_score = aligner.end_deletion_score = 0.0
     min_aln_score=len(subseq)*aln_percent
 
     aln=aligner.align(seq, subseq)
