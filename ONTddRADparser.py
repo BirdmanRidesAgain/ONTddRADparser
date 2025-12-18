@@ -59,30 +59,27 @@ def main():
     # now, we get sumstats for all the DCAs we've made
     print("Checking alignment validity")
     # we initialize this dict so we can 
-    sample_id_dict, failure_dict = split_DCA_lst(sample_id_dict, DCA_lst)
+    sample_id_dict, invalid_dict = split_DCA_lst(sample_id_dict, DCA_lst)
 
     # Begin writing plots and FQs to outdir
     outdir = make_outdir(args.prefix)
     # Create one DemuxxedSample for each unique sample_id
-    DS_lst = []
+
     for sample_id, sample_id_info in sample_id_dict.items():
         DemuxxedSample(sample_id, )
-        # FIXME - you need to rework this so that it *actually* attaches the demuxsample_lst to the DemuxSample object.
-        # rework the gather_SimpleSeqRecords_from_DemuxConstructAlignment method to work with the dict you put together
         DS = DemuxxedSample(sample_id, sample_id_info[1])
         fastq_file = DS.init_FastqFile_from_Demuxxed_Sample(outdir=outdir)
-        fastq_file.write_FastqFile_to_outdir()
-
-    ## Scan through all DemuxConstructAlignment objects and gather SimpleSeqRecords
-    #for DCA in DCA_lst_valid:
-    #    sample_id = DCA.DemuxConstruct.sample_id
-    #    if sample_id in DS_dict:
-    #        DS_dict[sample_id].gather_SimpleSeqRecords_from_DemuxConstructAlignment(DCA)
-#
-    ## write the fates of all sequences + a plot of them to 'outdir'
-    #barplot = calc_SimpleSeqRecordFates_stats(SimpleSeqRecord_fate_lst, outdir)
+        fastq_file.write_FastqFile_to_outdir() # One of these classes might be redundant
 
 
+    # now we want to plot the results from the 'success' dict.
+    plot1, df1 = plot_number_of_SimpleSeqRecords_per_sample_id(sample_id_dict)
+    plot1.savefig(f'{outdir}/{args.prefix}_demult_success.png', dpi=300)
+    df1.to_csv(f'{outdir}/{args.prefix}_seqs_per_sampleid_stats.tsv', sep = "\t")
+
+    plot2, df2 = plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict)
+    plot2.savefig(f'{outdir}/{args.prefix}_demult_failure.png', dpi=300)
+    df2.to_csv(f'{outdir}/{args.prefix}_failed_seqs_stats.tsv', sep = "\t")
 
 
 # If this is being imported

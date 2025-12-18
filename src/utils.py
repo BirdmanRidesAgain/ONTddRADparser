@@ -1,4 +1,4 @@
-__all__ = ["print_args", "parse_seqfile", "make_outdir", "calc_SimpleSeqRecordFates_stats", "plot_SeqRecordFates", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst"]
+__all__ = ["print_args", "parse_seqfile", "make_outdir", "plot_number_of_SimpleSeqRecords_per_sample_id", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity"]
 
 import gzip
 #from Bio import SeqIO
@@ -16,6 +16,9 @@ from src.classes import *
 
 
 def print_args(args):
+    '''
+    Prints user-defined arguments.
+    '''
     print("User-defined arguments:")
     for key, value in vars(args).items():
         print(f"\t{key}: {value}")
@@ -98,66 +101,6 @@ def make_sample_id_dict(filepath: str, fuzzy_aln_percent: float, exact_aln_perce
     sample_id_dict = convert_demux_df_to_DemuxConstruct_dict(demux_df, fuzzy_aln_percent, exact_aln_percent, buffer)
     return sample_id_dict
 
-def make_outdir(prefix: str):
-    '''
-    Script makes an output directory in your working directory from a prefix.
-    It then returns the path of that directory to the main script.
-    '''
-    os.makedirs(prefix, exist_ok=True)
-    return(prefix)
-
-def calc_SimpleSeqRecordFates_stats(fate_lst: list, outdir: str):
-    '''
-    Converts out sequence record information to a data frame, and then plots it.
-    Also saves the relevant data frame as a CSV.
-    '''
-    fate_df = pd.DataFrame(fate_lst, columns=[ 'outcome', 'sample_id', 'seq_id', 'filter'])
-    # you need to add the amount of failure in here too.
-    # get your count of inds, then rbind in the length of the failures to a new column, and then plot that
-    # what you need to do for 'success_df' is get a count of each 
-
-    success_df = fate_df[fate_df['outcome'] == 'success'][['sample_id', 'seq_id']]
-    fail_df = fate_df[fate_df['outcome'] == 'fail'][['sample_id', 'seq_id', 'filter']]
-    failed_seqs_lst=['NA',len(fail_df['seq_id'].unique())]
-    outcome_seqs_lst=list(success_df.groupby(by=['sample_id']).count().itertuples(index=True, name=None))
-    outcome_seqs_lst.append(failed_seqs_lst)
-    outcome_seqs_df = pd.DataFrame(outcome_seqs_lst, columns=['sample_id', 'count'])
-
-    barplot = plot_SeqRecordFates(outcome_seqs_df)
-
-    outcome_seqs_df.to_csv(f'{outdir}/ONTddRADparser_all_filter_stats.tsv', sep = "\t")
-    barplot.savefig(f'{outdir}/ONTddRADparser_demult_success.png', dpi=300)
-
-    return(barplot)
-
-def plot_SeqRecordFates(df: pd.DataFrame):
-    '''
-    Plots the dataframe from calc_SeqRecordFates_stats using seaborn.
-    '''
-    fig = plt.figure(figsize=(14,8), layout='constrained')
-    ax = sns.barplot(
-        df,
-        x='sample_id', y='count'
-    )
-    for container in ax.containers:
-        ax.bar_label(container, fmt='%d', padding=3, fontsize=12)
-    ax.grid(True, axis='y', linestyle='--', alpha=0.5)
-
-    # add labels
-    label_font = {'fontsize':14,'fontweight':'bold'}
-    ax.set_xlabel('Sample IDs (bins)',fontdict=label_font)
-    ax.set_ylabel('Number of reads',fontdict=label_font)
-    ax.tick_params(axis='x', labelrotation=45)
-    ax.set_title(
-        'Successfully demultiplexed reads per sample',
-        loc='left',
-        fontsize=16,
-        fontweight='bold',
-    )
-
-    fig.add_axes(ax)
-    return fig
-
 def chunk_input_lst(lst: list, n_rds: int = 10000):
     '''
     Splits the incoming input_lst into groups of n iterations.
@@ -167,26 +110,6 @@ def chunk_input_lst(lst: list, n_rds: int = 10000):
     '''
     input_list_of_lists = [lst[i:i + n_rds] for i in range(0, len(lst), n_rds)]
     return input_list_of_lists
-
-def make_DCA(input_lst: list):
-    '''
-    A wrapper around the default constructor for `DemuxConstructAlignment`.
-    Takes a list of tuples as input, making it more amenable to multiprocessing.
-    '''
-    # renaming shit so humans can interpret this
-    simple_seq_record = input_lst[0]
-    sample_id_dict = input_lst[1]
-    aligner = input_lst[2]
-
-    for sample_id, sample_id_info in sample_id_dict.items():
-        DC_lst=sample_id_info[0]
-        for DC in DC_lst:
-            DCA=DemuxConstructAlignment(simple_seq_record, DC, aligner)
-            DCA.check_DemuxConstructAlignment_validity()
-            if DCA.valid:
-                DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
-                return(DCA)
-    return(DCA) # you have to return the invalid ones to see why they failed
 
 def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_dict: dict, aligner):
     '''
@@ -208,15 +131,35 @@ def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_
     sample_id_dict_sorted = {k: v for k, v in sorted(id_dict.items(), key=lambda item: len(item[1][1]), reverse=True)}    
     return sample_id_dict_sorted
 
+def make_DCA(input_lst: list):
+    '''
+    A wrapper around the default constructor for `DemuxConstructAlignment`.
+    Takes a list of tuples as input, making it more amenable to multiprocessing.
+    '''
+    # renaming shit so humans can interpret this
+    simple_seq_record = input_lst[0]
+    sample_id_dict = input_lst[1]
+    aligner = input_lst[2]
+
+    for sample_id, sample_id_info in sample_id_dict.items():
+        DC_lst=sample_id_info[0]
+        for DC in DC_lst:
+            DCA=DemuxConstructAlignment(simple_seq_record, DC, aligner)
+            DCA.check_DemuxConstructAlignment_validity()
+            if DCA.valid:
+                DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
+                return(DCA)
+    return(DCA) # you have to return the invalid ones to see why they failed
+
 def split_DCA_lst(sample_id_dict: dict, DCA_lst: list):
     '''
     Takes in the sample_id_dict and divides it into successes (which can be assigned a sample_id) and failures (which cannot).
     
-    Returns a 'success' and a 'failure' dict.
+    Returns a 'valid' and a 'invalid' dict.
     Which is weird, but...
     '''
     sample_id_dict['NA'] = [[], []] # We add this key in to account for failed sequences.
-    failure_dict = {} # empty dict; will contain all seqid of failed reads, plus their filter values. we want to know why they failed
+    invalid_dict = {} # empty dict; will contain all seqid of failed reads, plus their filter values. we want to know why they failed
     
     for DCA in tqdm(DCA_lst):
         if DCA.valid:
@@ -224,6 +167,105 @@ def split_DCA_lst(sample_id_dict: dict, DCA_lst: list):
         else:
             # this records all the info we have for the failed seqs.
             sample_id_dict['NA'][1].append(DCA.SimpleSeqRecord)
-            failure_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict # this is a separate dict b/c it corresponds to plot 2, which has a different schema
+            invalid_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict # this is a separate dict b/c it corresponds to plot 2, which has a different schema
 
-    return [sample_id_dict, failure_dict]
+    return [sample_id_dict, invalid_dict]
+
+def make_outdir(prefix: str):
+    '''
+    Script makes an output directory in your working directory from a prefix.
+    It then returns the path of that directory to the main script.
+    '''
+    os.makedirs(prefix, exist_ok=True)
+    return(prefix)
+
+def plot_number_of_SimpleSeqRecords_per_sample_id(sample_id_dict: dict):
+    '''
+    Plots the dataframe from sample_id_dict using seaborn.
+    '''
+    data = []
+    for sample_id, (dc_list, seq_list) in sample_id_dict.items():
+        data.append({
+            'sample_id': sample_id,
+            'count': len(seq_list),
+            'num DemuxConstructs': len(dc_list)
+        })
+    df = pd.DataFrame(data)
+    fig = plt.figure(figsize=(14,8), layout='constrained')
+    ax = sns.barplot(
+        data=df,
+        y='sample_id', x='count', hue='num DemuxConstructs'
+    )
+    for container in ax.containers:
+        ax.bar_label(container, fmt='%d', padding=3, fontsize=12)
+    ax.grid(True, axis='x', linestyle='--', alpha=0.5)
+
+    # add labels
+    label_font = {'fontsize':14,'fontweight':'bold'}
+    ax.set_xlabel('Number of reads',fontdict=label_font)
+    ax.set_ylabel('Sample IDs (bins)',fontdict=label_font)
+    ax.tick_params(axis='y', labelrotation=0)
+    ax.set_title(
+        'Successfully demultiplexed reads per sample',
+        loc='left',
+        fontsize=16,
+        fontweight='bold',
+    )
+
+    fig.add_axes(ax)
+    return [fig, df]
+
+def plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict: dict):
+    '''
+    Takes in the invalid_dict to plot where SimpleSeqRecords are primarily lost and record sumstats.
+    Counts the number of sequences that failed at each filter step.
+    '''
+    # Initialize counters for each filter step
+    num_reads=len(invalid_dict)
+    filter_counts = {
+        'all_CEAs_valid': 0,
+        'no_long_CEA_concatamers_valid': 0,
+        'CEAs_in_CEAP_same_orientation': 0,
+        'CEAs_short_inside_CEAs_long': 0,
+        'CEAPs_opposite_orientation': 0,
+    }
+    
+    # Count failures at each filter step
+    for seq_id, valid_dict in invalid_dict.items():
+        for filter_step, is_valid in valid_dict.items():
+            if filter_step in filter_counts and not is_valid:
+                filter_counts[filter_step] += 1
+    
+    # Convert to DataFrame for plotting
+    data = []
+    data.append({'filter_step': 'total num failed reads', 'count': num_reads})
+    for filter_step, count in filter_counts.items():
+        data.append({
+            'filter_step': filter_step,
+            'count': (num_reads - count)
+        })
+    df = pd.DataFrame(data)
+    
+    fig = plt.figure(figsize=(14,8), layout='constrained')
+    ax = sns.barplot(
+        data=df,
+        x='filter_step', y='count'
+    )
+    for container in ax.containers:
+        ax.bar_label(container, fmt='%d', padding=3, fontsize=12)
+    ax.grid(True, axis='y', linestyle='--', alpha=0.5)
+
+    # add labels
+    label_font = {'fontsize':14,'fontweight':'bold'}
+    ax.set_xlabel('Filter step',fontdict=label_font)
+    ax.set_ylabel('Number of reads lost',fontdict=label_font)
+    ax.tick_params(axis='x', labelrotation=45)
+    ax.set_title(
+        'Number of SimpleSeqRecords after each filter',
+        loc='left',
+        fontsize=16,
+        fontweight='bold',
+    )
+
+    fig.add_axes(ax)
+    return [fig, df]

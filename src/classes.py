@@ -527,7 +527,6 @@ class DemuxxedSample:
     def __init__(self, sample_id, SimpleSeqRecord_lst: list = []):
         self.sample_id = sample_id
         self.SimpleSeqRecord_lst = SimpleSeqRecord_lst
-    
 
     def init_FastqFile_from_Demuxxed_Sample(self, outdir='.'):
         f = FastqFile(filename = self.sample_id, outdir=outdir, SimpleSeqRecord_lst = self.SimpleSeqRecord_lst)
@@ -537,6 +536,8 @@ class FastqFile:
     '''
     Represents a name and a set of associated sequences.
     Written to the working directory by default, optionally takes an output directory.
+    
+    This class might be redundant, and its methods should be transferred to DemuxxedSample.
     '''
     format = 'fastq'
 
