@@ -586,7 +586,7 @@ def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
 def align_target(seq: Seq, subseq: Seq, aligner: Align.PairwiseAligner, aln_percent: float = 1):
     '''
     Helper function for `check_seq_for_full_index` and others.
-    Takes a Bio.Record object and a Bio.Seq object, and aligns them.
+    Takes a Bio.Record object and a Bio.Seq object, and aligns` them.
     Returns a tuple of the start and end indices of 'subseq' to 'seq'.
     Returns a list of two indices which can be formatted to a Boundary object.
     '''

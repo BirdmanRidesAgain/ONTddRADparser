@@ -3,6 +3,8 @@
 
 from argparse import ArgumentParser
 from os import path
+import subprocess
+import sys
 from tqdm import tqdm
 import multiprocessing as multi
 from itertools import product
@@ -11,6 +13,24 @@ from src.classes import *
 #import time
 
 def main():
+    # activate your virtual environment
+    script_dir = path.dirname(path.abspath(__file__))
+    venv_path = path.join(script_dir, '.venv/bin/activate')
+    
+    if not path.exists(venv_path):
+        print(f"Error: Virtual environment activation script not found at {venv_path}", file=sys.stderr)
+        sys.exit(1)
+    
+    command = f'source {venv_path}'
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        print(f"Error: Failed to activate virtual environment at {venv_path}", file=sys.stderr)
+        if result.stderr:
+            print(f"Error details: {result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+
     ### DEFINE AND CHECK ARGS
     default_prefix=path.basename(__file__).split(sep='.')[0]
     parser = ArgumentParser(description="Takes a set of ONT-primer prefixes dddRADseq files and a set of barcodes and demultiplexes them.")
@@ -81,6 +101,8 @@ def main():
     plot2.savefig(f'{outdir}/{args.prefix}_demult_failure.png', dpi=300)
     df2.to_csv(f'{outdir}/{args.prefix}_failed_seqs_stats.tsv', sep = "\t")
 
+    # deactivate the venv
+    result = subprocess.run('deactivate')
 
 # If this is being imported
 if __name__=="__main__":
