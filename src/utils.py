@@ -1,4 +1,4 @@
-__all__ = ["print_args", "parse_seqfile", "make_outdir", "plot_number_of_SimpleSeqRecords_per_sample_id", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity"]
+__all__ = ["print_args", "parse_seqfile", "plot_number_of_SimpleSeqRecords_per_sample_id", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity"]
 
 import gzip
 #from Bio import SeqIO
@@ -9,7 +9,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import random
 from tqdm import tqdm
-import os
 from collections import defaultdict
 import pandas as pd
 from src.classes import *
@@ -125,10 +124,15 @@ def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_
                 DCA=DemuxConstructAlignment(SimpleSeqRecord, DC, aligner)
                 DCA.check_DemuxConstructAlignment_validity()
                 if DCA.valid:
-                    id_dict[sample_id][1].append(DCA.SimpleSeqRecord.id)
+                    id_dict[sample_id][1].append(DCA.SimpleSeqRecord)
     # code to sort the DC_dict
     # Sort based on reverse of Values
     sample_id_dict_sorted = {k: v for k, v in sorted(id_dict.items(), key=lambda item: len(item[1][1]), reverse=True)}    
+    
+    # Overwrite value[1] with blank list for every key
+    # This prevents us from running the same samples twice, and means the dict is only reordered
+    for key in sample_id_dict_sorted:
+        sample_id_dict_sorted[key][1] = []
     return sample_id_dict_sorted
 
 def make_DCA(input_lst: list):
@@ -137,14 +141,14 @@ def make_DCA(input_lst: list):
     Takes a list of tuples as input, making it more amenable to multiprocessing.
     '''
     # renaming shit so humans can interpret this
-    simple_seq_record = input_lst[0]
+    SimpleSeqRecord = input_lst[0]
     sample_id_dict = input_lst[1]
     aligner = input_lst[2]
 
     for sample_id, sample_id_info in sample_id_dict.items():
         DC_lst=sample_id_info[0]
         for DC in DC_lst:
-            DCA=DemuxConstructAlignment(simple_seq_record, DC, aligner)
+            DCA=DemuxConstructAlignment(SimpleSeqRecord, DC, aligner)
             DCA.check_DemuxConstructAlignment_validity()
             if DCA.valid:
                 DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
@@ -170,14 +174,6 @@ def split_DCA_lst(sample_id_dict: dict, DCA_lst: list):
             invalid_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict # this is a separate dict b/c it corresponds to plot 2, which has a different schema
 
     return [sample_id_dict, invalid_dict]
-
-def make_outdir(prefix: str):
-    '''
-    Script makes an output directory in your working directory from a prefix.
-    It then returns the path of that directory to the main script.
-    '''
-    os.makedirs(prefix, exist_ok=True)
-    return(prefix)
 
 def plot_number_of_SimpleSeqRecords_per_sample_id(sample_id_dict: dict):
     '''
