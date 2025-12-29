@@ -14,6 +14,7 @@ from Bio import Align
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+import os
 
 class Boundary:
     '''
@@ -555,7 +556,10 @@ class FastqFile:
         '''
         Thin wrapper around SeqIO.write.
         Uses `subprocess` to compress files - looks for `pigz` by default; otherwise uses `gzip`.
+        Also creates an outdir if it does not exist.
         '''
+        os.makedirs(self.outdir, exist_ok=True)
+
         pigz_path = which("pigz")
         if pigz_path:
             with open(self.filepath, "wb") as outfile, \
