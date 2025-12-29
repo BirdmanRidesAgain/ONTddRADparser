@@ -22,7 +22,15 @@ def main():
     parser.add_argument('-fa','--fuzzy_aln_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
     parser.add_argument('-ea','--exact_aln_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
     args = parser.parse_args()
+
+    # Ensure that our alignment percent arguments are a value between 0 and 1
+    if (min(0, 1) < args.fuzzy_aln_percent <= max(0, 1)) or (min(0, 1) < args.exact_aln_percent <= max(0, 1)):
+        raise ValueError("Alignment arguments (-fa, -ea) must be percentages: eg, -fa .9")
+
+
     print_args(args)
+
+
 
     ### PARSE IN FILES
     print("Reading in sequences")
