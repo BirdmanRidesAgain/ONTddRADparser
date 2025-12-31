@@ -110,7 +110,7 @@ def chunk_input_lst(lst: list, n_rds: int = 10000):
     input_list_of_lists = [lst[i:i + n_rds] for i in range(0, len(lst), n_rds)]
     return input_list_of_lists
 
-def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_dict: dict, aligner):
+def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_dict: dict):
     '''
     Gets the probability distribution of sample_ids in the `DC_dict` by classifying `n_samples`.
     Returns an ordered dict.
@@ -121,7 +121,7 @@ def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_
         for sample_id, sample_id_info in id_dict.items():
             DC_lst=sample_id_info[0]
             for DC in DC_lst:
-                DCA=DemuxConstructAlignment(SimpleSeqRecord, DC, aligner)
+                DCA=DemuxConstructAlignment(SimpleSeqRecord, DC)
                 DCA.check_DemuxConstructAlignment_validity()
                 if DCA.valid:
                     id_dict[sample_id][1].append(DCA.SimpleSeqRecord)

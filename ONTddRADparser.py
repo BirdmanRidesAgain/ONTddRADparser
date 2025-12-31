@@ -8,9 +8,10 @@ import sys
 from tqdm import tqdm
 import multiprocessing as multi
 from itertools import product
+import edlib
 from src.utils import *
 from src.classes import *
-#import time
+
 
 def main():
     # activate your virtual environment
@@ -34,13 +35,13 @@ def main():
     ### DEFINE AND CHECK ARGS
     default_prefix=path.basename(__file__).split(sep='.')[0]
     parser = ArgumentParser(description="Takes a set of ONT-primer prefixes dddRADseq files and a set of barcodes and demultiplexes them.")
-    parser.add_argument('-f','--fastq', help='Path to the input fq file. Required.', type=str, required=True)
-    parser.add_argument('-d','--demux', help='Path to the demux file. Required.', type=str, required=True)
-    parser.add_argument('-b','--buffer', help='The integer number of base pairs outside of the long element the short element can align to. Defaults to 0 (internal matching only).', type=int, default=0)
-    parser.add_argument('-t','--threads', help='The number of threads (actually CPU cores) this script can use to parallelize processes. Defaults to half the capacity of the host machine.', type=int, default=multi.cpu_count() // 2)    
-    parser.add_argument('-p','--prefix', help='Output prefix. Defaults to \'ONTddRADparse_out\' if not set.', type=str, default=f'{default_prefix}_out')
-    parser.add_argument('-fa','--fuzzy_aln_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
-    parser.add_argument('-ea','--exact_aln_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
+    parser.add_argument('-f', '--fastq', help='Path to the input fq file. Required.', type=str, required=True)
+    parser.add_argument('-d', '--demux', help='Path to the demux file. Required.', type=str, required=True)
+    parser.add_argument('-b', '--buffer', help='The integer number of base pairs outside of the long element the short element can align to. Defaults to 0 (internal matching only).', type=int, default=0)
+    parser.add_argument('-t', '--threads', help='The number of threads (actually CPU cores) this script can use to parallelize processes. Defaults to half the capacity of the host machine.', type=int, default=multi.cpu_count() // 2)    
+    parser.add_argument('-p', '--prefix', help='Output prefix. Defaults to \'ONTddRADparse_out\' if not set.', type=str, default=f'{default_prefix}_out')
+    parser.add_argument('-fa', '--fuzzy_aln_percent', help='The minimum percent identity needed to fuzzy-match a full index to a sequence.', default=.9, type=float)
+    parser.add_argument('-ea', '--exact_aln_percent', help='The minimum percent identity needed to exact-match a short index to a sequence.', default=1, type=float)
     args = parser.parse_args()
 
     # Ensure that our alignment percent arguments are a value between 0 and 1
@@ -48,28 +49,23 @@ def main():
         raise ValueError("Alignment arguments (-fa, -ea) must be percentages: eg, -fa .9")
     print_args(args)
 
-
-
-    ### PARSE IN FILES
+    ### READ IN FILES
     print("Reading in sequences")
     SimpleSeqRecord_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
     # we want to chunk up the seq_record_lst into smaller items.
 
     sample_id_dict = make_sample_id_dict(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
 
-    ### init aligner to avoid having to recreate it every time we call DemuxAlignment
-    aligner=init_aligner()
-
     # create the inputs to make DemuxConstructAlignments in parallel
 
     print("Making alignments")
     DCA_lst=[]
-    chunk_size = 10000 # this is an arbitrary number
+    chunk_size = 1000 # this is an arbitrary number
     if len(SimpleSeqRecord_lst) > chunk_size:
         print(f"\tLarge input. Running a burnin of {int(chunk_size/10)} replicates to optimize alignment order.")
-        sample_id_dict=optimize_sample_id_dict_order(SimpleSeqRecord_lst, int(chunk_size/10), sample_id_dict, aligner)
+        sample_id_dict=optimize_sample_id_dict_order(SimpleSeqRecord_lst, int(chunk_size/10), sample_id_dict)
 
-    input_lst = list(product(SimpleSeqRecord_lst, [sample_id_dict], [aligner]))
+    input_lst = list(product(SimpleSeqRecord_lst, [sample_id_dict]))
     DCA_lst_valid = []
 
     # the program is going to spend 95% of its time right in this block.

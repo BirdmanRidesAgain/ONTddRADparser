@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-__all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "init_aligner", "align_target"]
+__all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "align_target"]
 
 import gzip
 import subprocess
@@ -10,7 +10,7 @@ from io import TextIOWrapper
 from shutil import which
 from itertools import chain 
 import numpy as np
-from Bio import Align
+import edlib
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -125,10 +125,9 @@ class ConstructElementAlignment:
     A ConstructElementAlignment is valid if XORing RBoundary and RBoundary is true.
     '''
 
-    def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', ConstructElement: 'ConstructElement', aligner):
+    def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', ConstructElement: 'ConstructElement'):
         self.SimpleSeqRecord = SimpleSeqRecord
         self.ConstructElement = ConstructElement
-        self.aligner = aligner
         self.orientation = []
         seq_len=len(self.SimpleSeqRecord.seq)
         self.FBoundary = Boundary(seq_len)
@@ -161,7 +160,7 @@ class ConstructElementAlignment:
         '''Align in the forward direction.'''
         # We will only use the alignment method if we have to. Exact matches can get string methods.
         if self.ConstructElement.CE_type == 'long':
-            aln = align_target(self.SimpleSeqRecord.seq, self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+            aln = align_target(self.SimpleSeqRecord.seq, self.ConstructElement.seq, self.ConstructElement.aln_percent)
 
         elif self.ConstructElement.CE_type == 'short':
             start_idx = self.SimpleSeqRecord.seq.lower().find(self.ConstructElement.seq.lower())
@@ -178,7 +177,7 @@ class ConstructElementAlignment:
     def set_ConstructElement_RBoundary(self):
         '''Align in the reverse direction.'''
         if self.ConstructElement.CE_type == 'long':
-            aln = align_target(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.aligner, self.ConstructElement.aln_percent)
+            aln = align_target(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.ConstructElement.aln_percent)
         elif self.ConstructElement.CE_type == 'short':
             start_idx = self.SimpleSeqRecord.seq.reverse_complement().lower().find(self.ConstructElement.seq.lower())
             if start_idx != -1:
@@ -210,13 +209,12 @@ class ConstructElementAlignment:
         Checks for concatamers in binding in cis to each other.
         Concatamers resulting from the same seq binding in trans are already removed by checkConstructElementAlignment_validity.
         '''
-        self.aligner.target_end_gap_score = self.aligner.query_end_gap_score = 0.0
         min_aln_score = len(self.ConstructElement.seq)* self.ConstructElement.aln_percent
 
         if ('F' in self.orientation):
-            aln=self.aligner.align(self.SimpleSeqRecord.seq, self.ConstructElement.seq)
+            aln=edlib.align(self.SimpleSeqRecord.seq, self.ConstructElement.seq)
         elif ('R' in self.orientation):
-            aln=self.aligner.align(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq)
+            aln=edlib.align(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq)
         
         if len(aln)>1:
             if aln.score >= min_aln_score:
@@ -334,7 +332,7 @@ class DemuxConstructAlignment:
     Finally, contains a 'valid' and 'reason' tag.
     '''
 
-    def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', DemuxConstruct: 'DemuxConstruct', aligner):
+    def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', DemuxConstruct: 'DemuxConstruct'):
         valid_dict = {
             'all_CEAs_valid': False,
             'no_long_CEA_concatamers_valid': False,
@@ -350,10 +348,10 @@ class DemuxConstructAlignment:
         self.orientation = []
     
         # construct and validate CEAs
-        CEA_index_full=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index_full, aligner)
-        CEA_index=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index, aligner)
-        CEA_barcode_full=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode_full, aligner)
-        CEA_barcode=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode, aligner)
+        CEA_index_full=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index_full)
+        CEA_index=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.index)
+        CEA_barcode_full=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode_full)
+        CEA_barcode=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode)
 
         self.align_all_ConstructElements([CEA_index_full, CEA_index, CEA_barcode_full, CEA_barcode])
 
@@ -363,8 +361,6 @@ class DemuxConstructAlignment:
         self.CEAP_barcode.get_ConstructElementAlignmentPair_orientation()
         self.CEAP_index.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
         self.CEAP_barcode.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
-
-
 
     def __str__(self):
         str = f'''
@@ -577,32 +573,21 @@ class FastqFile:
             with gzip.open(self.filepath, "wt") as handle:
                 SeqIO.write(self.SimpleSeqRecord_lst, handle, self.format)
 
-# functions
-def init_aligner(open_gap_score=-.5, extend_gap_score=-.1):
-    # Generic aligner we'll initialize once
-    # We penalize opening gaps because our markers should theoretically be one group
-    aligner=Align.PairwiseAligner()
-    aligner.mode = 'local'
-    aligner.open_gap_score = open_gap_score
-    aligner.extend_gap_score = extend_gap_score
-    return(aligner)
-
-def align_target(seq: Seq, subseq: Seq, aligner: Align.PairwiseAligner, aln_percent: float = 1):
+def align_target(seq: Seq, subseq: Seq, aln_percent: float = 1):
     '''
-    Helper function for `check_seq_for_full_index` and others.
-    Takes a Bio.Record object and a Bio.Seq object, and aligns` them.
+    Takes two Bio.Seq objects (seq/target and query/subseq), and aligns them.
     Returns a tuple of the start and end indices of 'subseq' to 'seq'.
     Returns a list of two indices which can be formatted to a Boundary object.
     '''
-    aligner.target_end_gap_score = aligner.query_end_gap_score = 0.0
-    min_aln_score=len(subseq)*aln_percent
+    max_edit_dist = -1#len(subseq) - len(subseq)*aln_percent
 
-    aln=aligner.align(seq, subseq)
-
-    if (aln.score < min_aln_score):
+    aln=edlib.align(query=subseq, target=seq, k=max_edit_dist)
+    item=aln.get('editDistance')
+    if (aln.get('editDistance')==-1):
         return([np.nan, np.nan])
     else:
-        aln_boundaries=(aln[0].aligned[0].flatten())
+
+        aln_boundaries=[1,10]#(aln[0].aligned[0].flatten())
         return([min(aln_boundaries), max(aln_boundaries)])
 
 def main():
