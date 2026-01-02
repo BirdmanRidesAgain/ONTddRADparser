@@ -180,7 +180,7 @@ class ConstructElementAlignment:
             else:
                 aln = [np.nan, np.nan]
         else:
-            raise ValueError("Your CE_type should be either 'short' or 'long'.")
+            raise ValueError("CE_type must be either 'short' or 'long'.")
 
         # set the boundary    
         boundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
