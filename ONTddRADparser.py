@@ -68,10 +68,16 @@ def main():
     # Begin writing plots and FQs to outdir
     # Create one DemuxxedSample for each unique sample_id
 
+    print(f"Writing fastq files to \033[34m{args.prefix}/reads\033[0m")
+    fq_lst = []
     for sample_id, sample_id_info in sample_id_dict.items():
         DS = DemuxxedSample(sample_id, sample_id_info[1])
-        fastq_file = DS.init_FastqFile_from_Demuxxed_Sample(outdir=f'{args.prefix}/reads')
-        fastq_file.write_FastqFile_to_outdir() # One of these classes might be redundant
+        fq_lst.append(DS.init_FastqFile_from_Demuxxed_Sample(outdir=f'{args.prefix}/reads'))
+
+    pool = multi.Pool(processes = args.threads)
+    pool.map(write_fastq, fq_lst)
+    pool.close()
+    pool.join()    
 
 
     # now we want to plot the results from the 'success' dict.
