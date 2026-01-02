@@ -143,12 +143,11 @@ def make_DCA(input_lst: list):
     # renaming shit so humans can interpret this
     SimpleSeqRecord = input_lst[0]
     sample_id_dict = input_lst[1]
-    aligner = input_lst[2]
 
     for sample_id, sample_id_info in sample_id_dict.items():
         DC_lst=sample_id_info[0]
         for DC in DC_lst:
-            DCA=DemuxConstructAlignment(SimpleSeqRecord, DC, aligner)
+            DCA=DemuxConstructAlignment(SimpleSeqRecord, DC)
             DCA.check_DemuxConstructAlignment_validity()
             if DCA.valid:
                 DCA.trim_ConstructElements_out_of_SimpleSeqRecord()

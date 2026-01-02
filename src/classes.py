@@ -147,8 +147,8 @@ class ConstructElementAlignment:
         Also updates the "orientation" tag of the ConstructElementAlignment.
 
         '''
-        self.set_ConstructElement_FBoundary()
-        self.set_ConstructElement_RBoundary()
+        self.set_ConstructElement_Boundary('F')
+        self.set_ConstructElement_Boundary('R')
         
         # We allow both to be appended to account for short sequences possibly appearing more than once by chance
         if self.FBoundary.valid: # aligned in F
@@ -156,14 +156,25 @@ class ConstructElementAlignment:
         if self.RBoundary.valid: # aligned in R
             self.orientation.append('R')
 
-    def set_ConstructElement_FBoundary(self):     
-        '''Align in the forward direction.'''
+    def set_ConstructElement_Boundary(self, orientation: str):
+        '''
+        Align in the specified direction ('F' for forward, 'R' for reverse).
+        Sets the appropriate boundary (FBoundary or RBoundary) based on orientation.
+        '''
+        if orientation == 'F':
+            target_seq = self.SimpleSeqRecord.seq
+            boundary = self.FBoundary
+        elif orientation == 'R':
+            target_seq = self.SimpleSeqRecord.seq.reverse_complement()
+            boundary = self.RBoundary
+        else:
+            raise ValueError("Orientation must be either 'F' or 'R'.")
+        
         # We will only use the alignment method if we have to. Exact matches can get string methods.
         if self.ConstructElement.CE_type == 'long':
-            aln = align_target(self.SimpleSeqRecord.seq, self.ConstructElement.seq, self.ConstructElement.aln_percent)
-
+            aln = align_target(target_seq, self.ConstructElement.seq, self.ConstructElement.aln_percent)
         elif self.ConstructElement.CE_type == 'short':
-            start_idx = self.SimpleSeqRecord.seq.lower().find(self.ConstructElement.seq.lower())
+            start_idx = target_seq.lower().find(self.ConstructElement.seq.lower())
             if start_idx != -1:
                 aln = [start_idx, start_idx+(len(self.ConstructElement.seq.lower())-1)]
             else:
@@ -172,22 +183,7 @@ class ConstructElementAlignment:
             raise ValueError("Your CE_type should be either 'short' or 'long'.")
 
         # set the boundary    
-        self.FBoundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
-
-    def set_ConstructElement_RBoundary(self):
-        '''Align in the reverse direction.'''
-        if self.ConstructElement.CE_type == 'long':
-            aln = align_target(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq, self.ConstructElement.aln_percent)
-        elif self.ConstructElement.CE_type == 'short':
-            start_idx = self.SimpleSeqRecord.seq.reverse_complement().lower().find(self.ConstructElement.seq.lower())
-            if start_idx != -1:
-                aln = [start_idx, start_idx+(len(self.ConstructElement.seq.lower())-1)]
-            else:
-                aln = [np.nan, np.nan]
-        else:
-            raise ValueError("Your CE_type should be either 'short' or 'long'.")
-        # set the boundary   
-        self.RBoundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
+        boundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
 
     def check_ConstructElementAlignment_validity(self):
         '''
@@ -209,15 +205,15 @@ class ConstructElementAlignment:
         Checks for concatamers in binding in cis to each other.
         Concatamers resulting from the same seq binding in trans are already removed by checkConstructElementAlignment_validity.
         '''
-        min_aln_score = len(self.ConstructElement.seq)* self.ConstructElement.aln_percent
+        min_aln_score = len(self.ConstructElement.seq) - len(self.ConstructElement.seq)*self.ConstructElement.aln_percent
 
         if ('F' in self.orientation):
-            aln=edlib.align(self.SimpleSeqRecord.seq, self.ConstructElement.seq)
+            aln=edlib.align(self.SimpleSeqRecord.seq, self.ConstructElement.seq, mode='HW', task='locations')
         elif ('R' in self.orientation):
-            aln=edlib.align(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq)
+            aln=edlib.align(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq, mode='HW', task='locations')
         
         if len(aln)>1:
-            if aln.score >= min_aln_score:
+            if aln.get('editDistance') >= min_aln_score:
                 self.valid = False
                 return False
         self.valid=True
@@ -573,21 +569,20 @@ class FastqFile:
             with gzip.open(self.filepath, "wt") as handle:
                 SeqIO.write(self.SimpleSeqRecord_lst, handle, self.format)
 
-def align_target(seq: Seq, subseq: Seq, aln_percent: float = 1):
+def align_target(seq: Seq, subseq: Seq, aln_percent: float = 1.0):
     '''
     Takes two Bio.Seq objects (seq/target and query/subseq), and aligns them.
     Returns a tuple of the start and end indices of 'subseq' to 'seq'.
     Returns a list of two indices which can be formatted to a Boundary object.
     '''
-    max_edit_dist = -1#len(subseq) - len(subseq)*aln_percent
+    max_edit_dist = len(subseq) - len(subseq)*aln_percent
 
-    aln=edlib.align(query=subseq, target=seq, k=max_edit_dist)
-    item=aln.get('editDistance')
+    aln = edlib.align(query=subseq, target=seq, mode='HW', task='path')
+    #print(edlib.getNiceAlignment(aln, subseq, seq))
     if (aln.get('editDistance')==-1):
         return([np.nan, np.nan])
     else:
-
-        aln_boundaries=[1,10]#(aln[0].aligned[0].flatten())
+        aln_boundaries=list(aln.get('locations')[0])
         return([min(aln_boundaries), max(aln_boundaries)])
 
 def main():
