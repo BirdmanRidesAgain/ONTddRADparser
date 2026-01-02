@@ -205,15 +205,21 @@ class ConstructElementAlignment:
         Checks for concatamers in binding in cis to each other.
         Concatamers resulting from the same seq binding in trans are already removed by checkConstructElementAlignment_validity.
         '''
-        min_aln_score = len(self.ConstructElement.seq) - len(self.ConstructElement.seq)*self.ConstructElement.aln_percent
+        subseq = self.ConstructElement.seq
+        max_edit_dist = len(subseq) - len(subseq)*self.ConstructElement.aln_percent
 
         if ('F' in self.orientation):
-            aln=edlib.align(self.SimpleSeqRecord.seq, self.ConstructElement.seq, mode='HW', task='locations')
+            seq = self.SimpleSeqRecord.seq
         elif ('R' in self.orientation):
-            aln=edlib.align(self.SimpleSeqRecord.seq.reverse_complement(), self.ConstructElement.seq, mode='HW', task='locations')
+            seq = self.SimpleSeqRecord.seq.reverse_complement()
+        aln=edlib.align(query=subseq, target=seq, k=max_edit_dist, mode='HW', task='path')
         
-        if len(aln)>1:
-            if aln.get('editDistance') >= min_aln_score:
+        # We need to robustly check for concatamers here
+        if (len(aln.get('locations')) > 1):
+            # there might be a concatamer here, yeah
+            # note that edlib will always find the reverse comp. if it exists. we don;t want it to do that.
+            # does edlib always return 1 cigar even if there's two entries?
+            if aln.get('editDistance') >= max_edit_dist:
                 self.valid = False
                 return False
         self.valid=True
@@ -466,49 +472,26 @@ class DemuxConstructAlignment:
         '''
         Use the coordinates from the long CEAs to remove them from the SimpleSeqRecord.
         '''
-        # psuedocode
-        # get orientation of CEAP_index and CEAP_barcode.
-        # if forward, split the SimpleSeqRecord into two separate things and then add them together.
-            # include edge case where the long CEA is on the edge of a sequence
-        # edit the SimpleSeqRecord, leave everything else unchanged.
-
         if self.orientation == ['F','R']:
             FSpan = self.CEAP_index.CEA_long.FBoundary.span
             RSpan = self.CEAP_barcode.CEA_long.RBoundary.span
-
         elif self.orientation == ['R','F']:
             FSpan = self.CEAP_barcode.CEA_long.FBoundary.span
             RSpan = self.CEAP_index.CEA_long.RBoundary.span
-
         else:
             raise ValueError("Orientation is invalid for DCA")
 
-        # flip RSpan around to compensate for it being taken from the reverse complement
+        # Flip RSpan to compensate for reverse complement: convert to forward coordinates and swap
+        seq_len = np.int64(len(self.SimpleSeqRecord.seq))
+        RSpan = [seq_len - RSpan[1], seq_len - RSpan[0]]
 
-        seq_len=np.int64(len(self.SimpleSeqRecord.seq))
-        RSpan[0]=seq_len - RSpan[0]
-        RSpan[1]=seq_len - RSpan[1]
-
-        # swap the values with a tempvar
-        temp_val=RSpan[0]
-        RSpan[0] = RSpan[1]
-        RSpan[1] = temp_val
-        #print(f'FSpan:{FSpan}\tRSpan:{RSpan}')
-
-        # now we use the cut sites we derived to actually cut the seq
-        first_segment_seq=self.SimpleSeqRecord.seq[0:FSpan[0]]
-        second_segment_seq=self.SimpleSeqRecord.seq[FSpan[1]:RSpan[0]]
-        third_segment_seq=self.SimpleSeqRecord.seq[RSpan[1]:seq_len]
-
-        first_segment_qual=self.SimpleSeqRecord.qual[0:FSpan[0]]
-        second_segment_qual=self.SimpleSeqRecord.qual[FSpan[1]:RSpan[0]]
-        third_segment_qual=self.SimpleSeqRecord.qual[RSpan[1]:seq_len]
-
-        trim_SimpleSeqRecord_seq = first_segment_seq + second_segment_seq + third_segment_seq
-        trim_SimpleSeqRecord_qual = first_segment_qual + second_segment_qual + third_segment_qual
-
-        self.SimpleSeqRecord.seq = trim_SimpleSeqRecord_seq
-        self.SimpleSeqRecord.qual = trim_SimpleSeqRecord_qual
+        # Slice around both spans and concatenate
+        self.SimpleSeqRecord.seq = self.SimpleSeqRecord.seq[0:FSpan[0]] + \
+                                   self.SimpleSeqRecord.seq[FSpan[1]:RSpan[0]] + \
+                                   self.SimpleSeqRecord.seq[RSpan[1]:seq_len]
+        self.SimpleSeqRecord.qual = self.SimpleSeqRecord.qual[0:FSpan[0]] + \
+                                    self.SimpleSeqRecord.qual[FSpan[1]:RSpan[0]] + \
+                                    self.SimpleSeqRecord.qual[RSpan[1]:seq_len]
         return True
 
 class DemuxxedSample:
@@ -577,7 +560,7 @@ def align_target(seq: Seq, subseq: Seq, aln_percent: float = 1.0):
     '''
     max_edit_dist = len(subseq) - len(subseq)*aln_percent
 
-    aln = edlib.align(query=subseq, target=seq, mode='HW', task='path')
+    aln = edlib.align(query=subseq, target=seq, mode='HW', k=max_edit_dist, task='locations')
     #print(edlib.getNiceAlignment(aln, subseq, seq))
     if (aln.get('editDistance')==-1):
         return([np.nan, np.nan])
