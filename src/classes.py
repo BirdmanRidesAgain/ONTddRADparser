@@ -212,16 +212,12 @@ class ConstructElementAlignment:
             seq = self.SimpleSeqRecord.seq
         elif ('R' in self.orientation):
             seq = self.SimpleSeqRecord.seq.reverse_complement()
-        aln=edlib.align(query=subseq, target=seq, k=max_edit_dist, mode='HW', task='path')
+        aln=edlib.align(query=subseq, target=seq, k=max_edit_dist, mode='HW', task='locations')
         
-        # We need to robustly check for concatamers here
+        # We discard all concatamers; there is no trimming.
         if (len(aln.get('locations')) > 1):
-            # there might be a concatamer here, yeah
-            # note that edlib will always find the reverse comp. if it exists. we don;t want it to do that.
-            # does edlib always return 1 cigar even if there's two entries?
-            if aln.get('editDistance') >= max_edit_dist:
-                self.valid = False
-                return False
+            self.valid = False
+            return False
         self.valid=True
         return True
 
@@ -487,8 +483,8 @@ class DemuxConstructAlignment:
 
         # Slice around both spans and concatenate
         self.SimpleSeqRecord.seq = self.SimpleSeqRecord.seq[0:FSpan[0]] + \
-                                   self.SimpleSeqRecord.seq[FSpan[1]:RSpan[0]] + \
-                                   self.SimpleSeqRecord.seq[RSpan[1]:seq_len]
+                                    self.SimpleSeqRecord.seq[FSpan[1]:RSpan[0]] + \
+                                    self.SimpleSeqRecord.seq[RSpan[1]:seq_len]
         self.SimpleSeqRecord.qual = self.SimpleSeqRecord.qual[0:FSpan[0]] + \
                                     self.SimpleSeqRecord.qual[FSpan[1]:RSpan[0]] + \
                                     self.SimpleSeqRecord.qual[RSpan[1]:seq_len]
