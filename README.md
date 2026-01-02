@@ -1,4 +1,4 @@
-# ONTddRADparser
+# speeddemONT
 
 Keiler Collier, writing from probably-hell
 
@@ -9,10 +9,10 @@ Currently being developed for [Oikos](https://oikosgenomics.org)'s genomics low-
 
 ## Quickstart
 
-The minimal example below will write all demuxxed fastq files to `ONTddRADparse_out` in your working directory.
+The minimal example below will write all demuxxed fastq files to `speeddemONT_out` in your working directory.
 
 ```
-ONTddRADparse.py -f <input.fq.fz> -d <input_demux_construct_file.tsv> -e1 EcoRI -e2 SbfI
+speeddemONT -f <input.fq.fz> -d <input_demux_construct_file.tsv> -fa .9 -b 9
 ```
 
 ### Options
@@ -23,9 +23,7 @@ ONTddRADparse.py -f <input.fq.fz> -d <input_demux_construct_file.tsv> -e1 EcoRI 
 | `-f`, `--fastq` | `null` | String | Path to the input FASTQ file to be demultiplexed. Mandatory. |
 | `-d`, `--demux` | `null` | String | Path to the demux construct TSV file. Mandatory. |
 | `-b`, `--buffer` | `0` | Int | The integer number of base pairs outside of the long element the short element can align to. Defaults to 0 (internal matching only). Mandatory. |
-| `-p`, `--prefix` | `ONTddRADparse_out` | String | Output directory prefix. Demultiplexed FASTQ files will be written to this directory. |
-| `-e1`, `--enzyme1` | `null` | String | The restriction enzyme associated with the index. Must be a valid BioPython.Restriction enzyme name. Mandatory. |
-| `-e2`, `--enzyme2` | `null` | String | The restriction enzyme associated with the barcode. Must be a valid BioPython.Restriction enzyme name. Must differ from `--enzyme1`. |
+| `-p`, `--prefix` | `speeddemONT_out` | String | Output directory prefix. Demultiplexed FASTQ files will be written to this directory. |
 | `-fa`, `--fuzzy_aln_percent` | `0.9` | Float | The minimum percent identity (0.0-1.0) needed to fuzzy-match a full index or barcode to a sequence. Used for `index_full` and `barcode_full` alignments. |
 | `-ea`, `--exact_aln_percent` | `1.0` | Float | The minimum percent identity (0.0-1.0) needed to exact-match a short index or barcode to a sequence. Used for `index` and `barcode` alignments. |
 
@@ -52,7 +50,7 @@ R20N00088	CAA...ATTT	CGTGAT	AAT...GCA	ACAGCA
 #### Common errors in the demux construct file
 
 The demux construct file currently *must* be input with exactly the same header and structure as shown below.
-`ONTddRADparser` will throw errors if:
+`speeddemONT` will throw errors if:
 
 - The header is malformed
 - The `index` or `barcode` columns are not 6-9 bp long
@@ -82,7 +80,7 @@ Do they have anything to do with which restriction enzymes are used?
 
 ## Behavior
 
-`ONTddRADparse` implements several layers of filtering to both remove reads with malformed demultiplex constructs and sort correctly-sequenced reads into `sample_id` bins.
+`speeddemONT` implements several layers of filtering to both remove reads with malformed demultiplex constructs and sort correctly-sequenced reads into `sample_id` bins.
 
 This is a high-level description of the filtering steps used to bin a single read.
 
@@ -101,7 +99,7 @@ We score a `DemuxConstructAlignment` as **invalid** (and remove the read) under 
 - A (big) `ConstructElement` aligns in both orientations
   - We allow small `ConstructElements` to align in both directions, because this can happen by chance. 
 - Orientations of `ConstructElementPairs` do not make sense relative to each other
-    - See table below
+  - See table below
 
 | Type | Same orientation as | Opposite orientation as | Alignment strictness |
 | -- | -- | -- | -- |
@@ -148,6 +146,7 @@ FIXME : @Keiler Collier An image would make this way clearer
 - `functools` - Higher-order functions (partial function application)
 
 #### Third-Party Libraries
+
 - **BioPython** (`Bio`) - Biological sequence analysis
   - `Bio.SeqIO` - Sequence file input/output
   - `Bio.Restriction` - Restriction enzyme data
@@ -156,6 +155,7 @@ FIXME : @Keiler Collier An image would make this way clearer
   - `Bio.SeqRecord` - Sequence record objects
 - **numpy** - Numerical computing (used for NaN values and array operations)
 - **pandas** - Data manipulation and analysis (used for TSV file parsing)
+- **edlib**
 
 ### Installation
 Install the required third-party libraries using pip:
@@ -174,7 +174,7 @@ conda install biopython numpy pandas
 
 ## Speed Boost and profiling
 
-On 12 Dec 2025, naively implemented and using the following commands, `ONTddRADparser.py` had the following speeds:
+On 12 Dec 2025, naively implemented and using the following commands, `speeddemONT` had the following speeds:
 
 ```
 
@@ -182,11 +182,11 @@ On 12 Dec 2025, naively implemented and using the following commands, `ONTddRADp
 
 | Command | Machine | Real time | User time |
 | -- | -- | -- | -- | -- |
-| `time ./ONTddRADparser.py -f tests/data/ONT_test_0001percent.fq.gz -d tests/data/ddRAD_demux_construct.tsv` | Nietzsche | 42.105 | 40.28s |
+| `time ./speeddemONT -f tests/data/ONT_test_0001percent.fq.gz -d tests/data/ddRAD_demux_construct.tsv` | Nietzsche | 42.105 | 40.28s |
 
 
 We use [`cprofilev`](https://github.com/ymichael/cprofilev) to figure out what's wrong with this.
 
 ```
-python -m cprofilev -f ONTddRADparser_cProfile.tsv
+python -m cprofilev -f speeddemONT_cProfile.tsv
 ```

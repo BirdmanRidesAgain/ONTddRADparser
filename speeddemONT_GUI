@@ -10,12 +10,12 @@ with st.sidebar:
         time.sleep(5)
     st.success("Done!")
 
-st.markdown("# :red[ON]:orange[Td]:yellow[dR]:green[AD]:blue[pa]:violet[rs]:gray[er] 🌈")
-st.subheader("A GUI frontend for [ONTddRADparser](https://github.com/BirdmanRidesAgain/ONTddRADparser)")
-
+st.markdown("# :red[Sp]:orange[ee]:yellow[DD]:green[em]:blue[O]:violet[N]:gray[T] 🌈")
+st.subheader("A GUI frontend for [speeddemONT](https://github.com/BirdmanRidesAgain/speeddemONT)")
+SpeeDDemONT
 
 st.set_page_config(
-    page_title="ONTddRADparser",
+    page_title="speeddemONT",
     page_icon=":rainbow:",
 )
 
