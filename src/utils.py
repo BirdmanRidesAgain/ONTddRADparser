@@ -1,7 +1,6 @@
-__all__ = ["print_args", "parse_seqfile", "plot_number_of_SimpleSeqRecords_per_SampleID", "make_SampleID_dict", "chunk_input_lst", "optimize_SampleID_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity", "write_fastq", "print_demultiplexing_summary"]
+__all__ = ["print_user_info", "print_logo", "print_args", "parse_seqfile", "plot_number_of_SimpleSeqRecords_per_SampleID", "make_SampleID_dict", "chunk_input_lst", "optimize_SampleID_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity", "write_fastq", "print_demultiplexing_summary"]
 
 import gzip
-#from Bio import SeqIO
 from Bio.SeqIO.QualityIO import FastqGeneralIterator
 from mimetypes import guess_type
 from functools import partial
@@ -11,14 +10,41 @@ import random
 from tqdm import tqdm
 from collections import defaultdict
 import pandas as pd
+from termcolor import colored, cprint
+from sys import stderr
 from src.classes import *
+
+def print_user_info(message: str, bold: bool=True):
+    '''
+    Formats user-important strings as boldface magenta, and writes them to stderr.
+    Writing to stderr keeps them from being picked up by redirection.
+    '''
+    if bold:
+        cprint(message, "light_magenta", attrs=["bold"], file=stderr)
+    else:
+        cprint(message, "light_magenta", file=stderr)
+def print_logo():
+    '''
+    Prints an obnoxious ASCII-logo in rainbow lettering to stdout.
+    '''
+    line1=colored(f'                                 _________               ____________   _________          ', (255, 0, 0), (102, 102, 153))
+    line2=colored(f'        _______________________________  /___________ _____  __ \__  | / /__  __/        ', (255, 153, 0), (102, 102, 153))
+    line3=colored(f'       ___  ___/__  __ \  _ \  _ \  __  /_  _ \_  __ `__ \  / / /_   |/ /__  /         ',(255, 255, 0), (102, 102, 153))
+    line4=colored(f'     ____(__  )__  /_/ /  __/  __/ /_/ / /  __/  / / / / / /_/ /_  /|  / _  /        ',(102, 255, 51), (102, 102, 153))
+    line5=colored(f'    ____/____/ _  .___/\___/\___/\__,_/  \___//_/ /_/ /_/\____/ /_/ |_/  /_/       ',(51, 204, 255), (102, 102, 153))
+    line6=colored(f'               /_/                                                               ',(51, 51, 255), (102, 102, 153))
+
+    lines=[line1,line2,line3,line4,line5,line6]
+    for i in lines:
+        cprint(i,attrs=["bold"])
+
 
 
 def print_args(args):
     '''
     Prints user-defined arguments.
     '''
-    print("User-defined arguments:")
+    print_user_info('User-defined arguments:')
     for key, value in vars(args).items():
         print(f"\t{key}: {value}")
 
@@ -136,7 +162,7 @@ def optimize_SampleID_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_d
 
 def write_fastq(fq):
     '''
-    Helper function to parallelize writing fastq files to the drive.
+    Helper function to parallelize writing fastq files to the drive by providing a mappable function.
     '''
     fq.write_FastqFile_to_outdir()
 
@@ -221,7 +247,6 @@ def plot_number_of_SimpleSeqRecords_per_SampleID(SampleID_dict: dict):
         fontsize=16,
         fontweight='bold',
     )
-
     fig.add_axes(ax)
     return [fig, df]
 
@@ -315,7 +340,6 @@ def print_demultiplexing_summary(df: pd.DataFrame):
     num_samples = len(df[df['sample_id'] != 'NA'])
     
     # Print summary statistics
-    print(f"\nSummary Statistics:")
     print(f"{binned_rds:,}/{total_rds:,} ({100 * binned_rds / total_rds:.2f}%) in {num_samples} sample IDs successfully demuxxed")
     print('\n')
     print(df.to_string(index=False))
