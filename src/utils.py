@@ -1,4 +1,4 @@
-__all__ = ["print_args", "parse_seqfile", "plot_number_of_SimpleSeqRecords_per_sample_id", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity", "write_fastq", "print_demultiplexing_summary"]
+__all__ = ["print_args", "parse_seqfile", "plot_number_of_SimpleSeqRecords_per_SampleID", "make_SampleID_dict", "chunk_input_lst", "optimize_SampleID_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity", "write_fastq", "print_demultiplexing_summary"]
 
 import gzip
 #from Bio import SeqIO
@@ -70,7 +70,7 @@ def parse_demux_file(filepath: str):
             )
     return df
 
-def convert_demux_df_to_DemuxConstruct_dict(df: pd.DataFrame, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
+def convert_demux_df_to_SampleID_dict(df: pd.DataFrame, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
     '''
     Ingests a data frame and converts it to a dictionary object organized by sample_id.
     The values are a list of DCs, allowing multiple DCs per sample_id.
@@ -79,7 +79,7 @@ def convert_demux_df_to_DemuxConstruct_dict(df: pd.DataFrame, fuzzy_aln_percent:
     sample_id_dict = defaultdict(list)
     # Group the DataFrame by sample_id, and for each group, iterate over all rows (values)
     for sample_id, group_df in df.groupby('sample_id'):
-        DCs_in_sample_id_lst = [] # these are both initialized as empty
+        DCs_in_SampleID_lst = [] # these are both initialized as empty
         demuxxed_seq_ids = []
         for _, row in group_df.iterrows():
             index_full_CE = ConstructElement(row['index_full'], 'long', fuzzy_aln_percent, buffer)
@@ -87,18 +87,18 @@ def convert_demux_df_to_DemuxConstruct_dict(df: pd.DataFrame, fuzzy_aln_percent:
             barcode_full_CE = ConstructElement(row['barcode_full'], 'long', fuzzy_aln_percent, buffer)
             barcode_CE = ConstructElement(row['barcode'], 'short', exact_aln_percent)
             DC = DemuxConstruct(sample_id, index_full_CE, index_CE, barcode_full_CE, barcode_CE)
-            DCs_in_sample_id_lst.append(DC) 
+            DCs_in_SampleID_lst.append(DC) 
         # initialize the seqs demuxxed as an empty list
-        sample_id_dict[row['sample_id']] = [DCs_in_sample_id_lst, demuxxed_seq_ids]
+        sample_id_dict[row['sample_id']] = [DCs_in_SampleID_lst, demuxxed_seq_ids]
     return sample_id_dict
 
-def make_sample_id_dict(filepath: str, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
+def make_SampleID_dict(filepath: str, fuzzy_aln_percent: float, exact_aln_percent: float, buffer: int):
     '''
     Wraps around `parse_demux_file` and `convert_demux_df_to_DemuxConstruct_lst1
     '''
     demux_df = parse_demux_file(filepath)
-    sample_id_dict = convert_demux_df_to_DemuxConstruct_dict(demux_df, fuzzy_aln_percent, exact_aln_percent, buffer)
-    return sample_id_dict
+    SampleID_dict = convert_demux_df_to_SampleID_dict(demux_df, fuzzy_aln_percent, exact_aln_percent, buffer)
+    return SampleID_dict
 
 def chunk_input_lst(lst: list, n_rds: int = 10000):
     '''
@@ -110,12 +110,11 @@ def chunk_input_lst(lst: list, n_rds: int = 10000):
     input_list_of_lists = [lst[i:i + n_rds] for i in range(0, len(lst), n_rds)]
     return input_list_of_lists
 
-def optimize_sample_id_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_dict: dict):
+def optimize_SampleID_dict_order(SimpleSeqRecord_lst: list, n_samples: int, id_dict: dict):
     '''
     Gets the probability distribution of sample_ids in the `DC_dict` by classifying `n_samples`.
     Returns an ordered dict.
     '''
-    # code that optimizes how the dict is constructed
     random.seed(a=n_samples)
     for SimpleSeqRecord in tqdm(random.sample(SimpleSeqRecord_lst, n_samples)):
         for sample_id, sample_id_info in id_dict.items():
@@ -149,46 +148,55 @@ def make_DCA(input_lst: list):
     '''
     # renaming items so humans can interpret this
     SimpleSeqRecord = input_lst[0]
-    sample_id_dict = input_lst[1]
+    SampleID_dict = input_lst[1]
+    max_valid_comparisons = input_lst[2]
 
-    for sample_id, sample_id_info in sample_id_dict.items():
-        DC_lst=sample_id_info[0]
+    valid_DCA_lst = [] # when alignments are fuzzy, you can get many DCAs
+    for SampleID_info in SampleID_dict.values():
+        DC_lst = SampleID_info[0]
         for DC in DC_lst:
+            if len(valid_DCA_lst) >= max_valid_comparisons:
+                break
             DCA=DemuxConstructAlignment(SimpleSeqRecord, DC)
             DCA.check_DemuxConstructAlignment_validity()
             if DCA.valid:
-                DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
-                return(DCA)
-    return(DCA) # you have to return the invalid ones to see why they failed
+                valid_DCA_lst.append(DCA)
 
-def split_DCA_lst(sample_id_dict: dict, DCA_lst: list):
+    if (valid_DCA_lst):
+        highest_DCA=valid_DCA_lst[0]# this is psuedocode; actually find the highest scoring DCA
+        highest_DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
+        return(highest_DCA)
+    else:
+        return(DCA) # you have to return the invalid ones to see why they failed
+
+def split_DCA_lst(SampleID_dict: dict, DCA_lst: list):
     '''
     Takes in the sample_id_dict and divides it into successes (which can be assigned a sample_id) and failures (which cannot).
     
     Returns a 'valid' and a 'invalid' dict.
     Which is weird, but...
     '''
-    sample_id_dict['NA'] = [[], []] # We add this key in to account for failed sequences.
+    SampleID_dict['NA'] = [[], []] # We add this key in to account for failed sequences.
     invalid_dict = {} # empty dict; will contain all seqid of failed reads, plus their filter values. we want to know why they failed
     
     for DCA in tqdm(DCA_lst):
         if DCA.valid:
-            sample_id_dict[DCA.DemuxConstruct.sample_id][1].append(DCA.SimpleSeqRecord)
+            SampleID_dict[DCA.DemuxConstruct.SampleID][1].append(DCA.SimpleSeqRecord)
         else:
             # this records all the info we have for the failed seqs.
-            sample_id_dict['NA'][1].append(DCA.SimpleSeqRecord)
+            SampleID_dict['NA'][1].append(DCA.SimpleSeqRecord)
             invalid_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict # this is a separate dict b/c it corresponds to plot 2, which has a different schema
 
-    return [sample_id_dict, invalid_dict]
+    return [SampleID_dict, invalid_dict]
 
-def plot_number_of_SimpleSeqRecords_per_sample_id(sample_id_dict: dict):
+def plot_number_of_SimpleSeqRecords_per_SampleID(SampleID_dict: dict):
     '''
     Plots the dataframe from sample_id_dict using seaborn.
     '''
     data = []
-    for sample_id, (dc_list, seq_list) in sample_id_dict.items():
+    for SampleID, (dc_list, seq_list) in SampleID_dict.items():
         data.append({
-            'sample_id': sample_id,
+            'sample_id': SampleID,
             'count': len(seq_list),
             'num DemuxConstructs': len(dc_list)
         })
@@ -300,10 +308,7 @@ def print_demultiplexing_summary(df: pd.DataFrame):
     --------
     >>> plot1, df1 = plot_number_of_SimpleSeqRecords_per_sample_id(sample_id_dict)
     >>> print_demultiplexing_summary(df1)
-    Summary Statistics:
-        Successfully categorized samples: 15 (88.24% of all sample bins)
-        Successfully categorized reads: 1,231 (65.89% of total reads)
-        Total reads processed: 1,868
+
     '''
     total_rds = df['count'].sum()
     binned_rds = df[df['sample_id'] != 'NA']['count'].sum()
@@ -311,7 +316,7 @@ def print_demultiplexing_summary(df: pd.DataFrame):
     
     # Print summary statistics
     print(f"\nSummary Statistics:")
-    print(f"{binned_rds:,}/{total_rds} ({100 * binned_rds / total_rds:.2f}%) in {num_samples} sample IDs successfully demuxxed")
+    print(f"{binned_rds:,}/{total_rds:,} ({100 * binned_rds / total_rds:.2f}%) in {num_samples} sample IDs successfully demuxxed")
     print('\n')
     print(df.to_string(index=False))
 

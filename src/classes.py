@@ -306,8 +306,8 @@ class DemuxConstruct:
     Consists of a sample ID and four ConstructElement objects: two 6-9bp ones which must be exact matches, and two longer ones where error is allowed.
     Canonically, should be read in from your demux file.
     '''
-    def __init__(self, sample_id, index_full: 'ConstructElement', index:'ConstructElement', barcode_full:'ConstructElement', barcode: 'ConstructElement'):
-        self.sample_id = sample_id
+    def __init__(self, SampleID, index_full: 'ConstructElement', index:'ConstructElement', barcode_full:'ConstructElement', barcode: 'ConstructElement'):
+        self.SampleID = SampleID
         self.index_full = index_full
         self.index = index
         self.barcode_full = barcode_full
@@ -315,7 +315,7 @@ class DemuxConstruct:
 
     def __str__(self):
         str = f'''
-        SimpleSeqRecord\t{self.sample_id}
+        SimpleSeqRecord\t{self.SampleID}
         index_full\t{self.index_full}
         index\t\t{self.index}
         barcode_full\t{self.barcode_full}
@@ -496,12 +496,12 @@ class DemuxxedSample:
     Aggregates SimpleSeqRecords from DemuxConstructAlignments that share the same sample_id.
     Uses that information to create a FastqFile by calling that class's method.
     '''
-    def __init__(self, sample_id, SimpleSeqRecord_lst: list = []):
-        self.sample_id = sample_id
+    def __init__(self, SampleID, SimpleSeqRecord_lst: list = []):
+        self.SampleID = SampleID
         self.SimpleSeqRecord_lst = SimpleSeqRecord_lst
 
     def init_FastqFile_from_Demuxxed_Sample(self, outdir='.'):
-        f = FastqFile(filename = self.sample_id, outdir=outdir, SimpleSeqRecord_lst = self.SimpleSeqRecord_lst)
+        f = FastqFile(filename = self.SampleID, outdir=outdir, SimpleSeqRecord_lst = self.SimpleSeqRecord_lst)
         return(f)
     
 class FastqFile:
