@@ -1,6 +1,6 @@
-# speeddemONT
+# <span style="color:red;">sp</span><span style="color:orange;">ee</span><span style="color:yellow;">dd</span><span style="color:lime;">em</span><span style="color:blue;">O</span><span style="color:indigo;">N</span><span style="color:violet;">T</span>
 
-Keiler Collier, writing from probably-hell
+The **spee**dy **dd**-RADseq **dem**ultiplexer for **ONT** data.
 
 ## Purpose
 

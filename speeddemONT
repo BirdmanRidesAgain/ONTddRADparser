@@ -27,29 +27,36 @@ def main():
     parser.add_argument('-mc', '--max_comparisons', help='The maximum number of \'valid\' alignments the program can make in \'fuzzy\' alignments  before picking the best match. Defaults to the number of barcodes in your demux file. Lowering the value increases speed, but may produce misclassifications.', type=int)
     args = parser.parse_args()
 
+
+    ### COLORS!
+    BRIGHT_RED = '\033[91m'
+    BRIGHT_MAGENTA = '\033[95m'
+    BRIGHT_CYAN = '\033[96m'
+    RESET = '\033[0m' # called to return to standard terminal text color
+
     # Ensure that our alignment percent arguments are a value between 0 and 1
     if not (min(0, 1) < args.fuzzy_aln_percent <= max(0, 1)) or not (min(0, 1) < args.exact_aln_percent <= max(0, 1)):
-        raise ValueError("Alignment arguments (-fa, -ea) must be percentages: eg, -fa .9")
+        raise ValueError(f'{BRIGHT_RED}Alignment arguments (-fa, -ea) must be percentages: eg, -fa .9{RESET}')
     
     # Once all our args are valid, print the speeddemONT logo in obnoxious rainbow font, and start running
     # all 'info' print statements need to be bold
-    # all warnings (ValueErrors) need to be RED
-
     print_args(args)
 
+
+
     ### READ IN FILES
-    print("Reading in sequences")
+    print(f'{BRIGHT_MAGENTA}Reading in sequences{RESET}')
     SimpleSeqRecord_lst = parse_seqfile(args.fastq) # uses FastqGeneralIterator to read big FAs cheaply
     # we want to chunk up the seq_record_lst into smaller items.
 
     SampleID_dict = make_SampleID_dict(args.demux, args.fuzzy_aln_percent, args.exact_aln_percent, args.buffer)
 
-    print("Making alignments")
+    print(f'{BRIGHT_MAGENTA}Making alignments{RESET}')
     DCA_lst=[]
-    chunk_size = 10000 # this is an arbitrary number
+    chunk_size = 1000 # this is an arbitrary number
     if len(SimpleSeqRecord_lst) > chunk_size:
-        print(f"\tLarge input. Running a burnin of {int(chunk_size/10)} replicates to optimize alignment order.")
-        SampleID_dict=optimize_SampleID_dict_order(SimpleSeqRecord_lst, int(chunk_size/10), sample_id_dict)
+        print(f'\tLarge input. Running a burnin of {int(chunk_size/10)} replicates to optimize alignment order')
+        SampleID_dict=optimize_SampleID_dict_order(SimpleSeqRecord_lst, int(chunk_size/10), SampleID_dict)
 
     # Begin the main loop
     if (args.max_comparisons is None):
@@ -68,13 +75,13 @@ def main():
     pool.join()
 
 
-    print("Checking alignment validity")
+    print(f'{BRIGHT_MAGENTA}Checking alignment validity{RESET}')
     sample_id_dict, invalid_dict = split_DCA_lst(SampleID_dict, DCA_lst)
 
     # Begin writing plots and FQs to outdir
     # Create one DemuxxedSample for each unique sample_id
 
-    print(f"Writing fastq files to \033[34m{args.prefix}/reads\033[0m")
+    print(f"{BRIGHT_MAGENTA}Writing fastq files to {BRIGHT_CYAN}{args.prefix}/reads{RESET}")
     fq_lst = []
     for SampleID, SampleID_info in SampleID_dict.items():
         DS = DemuxxedSample(SampleID, SampleID_info[1])
