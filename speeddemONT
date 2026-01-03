@@ -60,9 +60,7 @@ def main():
     pool.join()
 
 
-    # now, we get sumstats for all the DCAs we've made
     print("Checking alignment validity")
-
     sample_id_dict, invalid_dict = split_DCA_lst(sample_id_dict, DCA_lst)
 
     # Begin writing plots and FQs to outdir
@@ -80,14 +78,17 @@ def main():
     pool.join()    
 
 
-    # now we want to plot the results from the 'success' dict.
+    # Plot results and print percent
     plot1, df1 = plot_number_of_SimpleSeqRecords_per_sample_id(sample_id_dict)
     plot1.savefig(f'{args.prefix}/{args.prefix}_demult_success.png', dpi=300)
-    df1.to_csv(f'{args.prefix}/{args.prefix}_seqs_per_sampleid_stats.tsv', sep = "\t")
+    df1.to_csv(f'{args.prefix}/{args.prefix}_seqs_per_sampleid_stats.tsv', sep = "\t", index=False)
+    print_demultiplexing_summary(df1)
 
-    plot2, df2 = plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict)
-    plot2.savefig(f'{args.prefix}/{args.prefix}_demult_failure.png', dpi=300)
-    df2.to_csv(f'{args.prefix}/{args.prefix}_failed_seqs_stats.tsv', sep = "\t")
+
+
+    #plot2, df2 = plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict)
+    #plot2.savefig(f'{args.prefix}/{args.prefix}_demult_failure.png', dpi=300)
+    #df2.to_csv(f'{args.prefix}/{args.prefix}_failed_seqs_stats.tsv', sep = "\t", index=False)
 
 # If this is being imported
 if __name__=="__main__":

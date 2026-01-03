@@ -1,4 +1,4 @@
-__all__ = ["print_args", "parse_seqfile", "plot_number_of_SimpleSeqRecords_per_sample_id", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity", "write_fastq"]
+__all__ = ["print_args", "parse_seqfile", "plot_number_of_SimpleSeqRecords_per_sample_id", "make_sample_id_dict", "chunk_input_lst", "optimize_sample_id_dict_order", "make_DCA", "split_DCA_lst", "plot_reasons_for_SimpleSeqRecord_invalidity", "write_fastq", "print_demultiplexing_summary"]
 
 import gzip
 #from Bio import SeqIO
@@ -271,3 +271,47 @@ def plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict: dict):
 
     fig.add_axes(ax)
     return [fig, df]
+
+def print_demultiplexing_summary(df: pd.DataFrame):
+    '''
+    Calculates and prints summary statistics for demultiplexing results.
+    
+    Takes a DataFrame with columns 'sample_id' and 'count' (as returned by 
+    plot_number_of_SimpleSeqRecords_per_sample_id) and prints:
+    - Number of successfully categorized samples (sample_id != 'NA')
+    - Number of successfully categorized reads
+    - Total number of reads processed
+    
+    All values are reported as both absolute numbers and percentages.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing demultiplexing results with columns:
+        - 'sample_id': str, sample identifiers (may include 'NA' for uncategorized reads)
+        - 'count': int, number of reads per sample_id
+    
+    Returns
+    -------
+    None
+        Prints summary statistics to stdout.
+    
+    Examples
+    --------
+    >>> plot1, df1 = plot_number_of_SimpleSeqRecords_per_sample_id(sample_id_dict)
+    >>> print_demultiplexing_summary(df1)
+    Summary Statistics:
+        Successfully categorized samples: 15 (88.24% of all sample bins)
+        Successfully categorized reads: 1,231 (65.89% of total reads)
+        Total reads processed: 1,868
+    '''
+    total_rds = df['count'].sum()
+    binned_rds = df[df['sample_id'] != 'NA']['count'].sum()
+    num_samples = len(df[df['sample_id'] != 'NA'])
+    
+    # Print summary statistics
+    print(f"\nSummary Statistics:")
+    print(f"{binned_rds:,}/{total_rds} ({100 * binned_rds / total_rds:.2f}%) in {num_samples} sample IDs successfully demuxxed")
+    print('\n')
+    print(df.to_string(index=False))
+
