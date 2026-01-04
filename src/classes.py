@@ -21,18 +21,19 @@ class Boundary:
     Simple class representing the zero-indexed start/end boundaries of two sequences.
     Alignments are made with BioPython's Align module.
     '''
-    def __init__(self, seq_len: int, start_idx=np.nan, end_idx=np.nan, buffer: int = 0, valid: bool = False):
+    def __init__(self, seq_len: int, start_idx=np.nan, end_idx=np.nan, buffer: int = 0, editDistance:int = np.nan, valid: bool = False):
         self.seq_len = seq_len
         self.start_idx = start_idx
         self.end_idx = end_idx
         self.buffer = buffer
+        self.editDistance = editDistance # edit distance
         self.span = [np.nan, np.nan]
         self.valid = valid
 
     def __str__(self):
         str=f'''
-        Full_seq_len\tAln_start_idx\tAln_end_index\tBuffer\tValidity
-        {self.seq_len}\t{self.start_idx}\t{self.end_idx}\t{self.buffer}\t{self.valid}
+        Full_seq_len\tAln_start_idx\tAln_end_index\tBuffer\tScore\tValidity
+        {self.seq_len}\t{self.start_idx}\t{self.end_idx}\t{self.buffer}\t{self.editDistance}\t{self.valid}
         '''
         return(str)
 
@@ -61,13 +62,14 @@ class Boundary:
         else:
             self.valid = True
     
-    def set_Boundary(self, start_idx: int, end_idx: int, buffer: int):
+    def set_Boundary(self, start_idx: int, end_idx: int, buffer: int, editDistance: int):
         '''
         Fills in a boundary and checks its validity.
         '''
         self.start_idx=start_idx
         self.end_idx=end_idx
         self.buffer=buffer
+        self.editDistance=editDistance
         self.check_Boundary_validity()
         if self.valid:
             self.get_Boundary_span()
@@ -130,8 +132,9 @@ class ConstructElementAlignment:
         self.ConstructElement = ConstructElement
         self.orientation = []
         seq_len=len(self.SimpleSeqRecord.seq)
-        self.FBoundary = Boundary(seq_len)
+        self.FBoundary = Boundary(seq_len) # you could probably set the boundaries right now
         self.RBoundary = Boundary(seq_len)
+        self.editDistance = np.nan
         self.valid = False
 
     def __str__(self):
@@ -144,7 +147,7 @@ class ConstructElementAlignment:
     def align_ConstructElement(self):
         '''
         Aligns the subset to the seq in the 5->3 ('F') and 3->5 ('R') direction and fills in boundaries.
-        Also updates the "orientation" tag of the ConstructElementAlignment.
+        Also updates the "orientation" and "editDistance" tags of the ConstructElementAlignment.
 
         '''
         self.set_ConstructElement_Boundary('F')
@@ -172,18 +175,22 @@ class ConstructElementAlignment:
         
         # We will only use the alignment method if we have to. Exact matches can get string methods.
         if self.ConstructElement.CE_type == 'long':
-            aln = align_target(target_seq, self.ConstructElement.seq, self.ConstructElement.aln_percent)
+            idxes, editDistance = align_target(target_seq, self.ConstructElement.seq, self.ConstructElement.aln_percent)
         elif self.ConstructElement.CE_type == 'short':
-            start_idx = target_seq.lower().find(self.ConstructElement.seq.lower())
+            subseq=self.ConstructElement.seq.lower()
+            start_idx = target_seq.lower().find(subseq) # 'lower' handles any mismatches due to softmasking
             if start_idx != -1:
-                aln = [start_idx, start_idx+(len(self.ConstructElement.seq.lower())-1)]
+                idxes = [start_idx, start_idx+(len(subseq)-1)]
+                editDistance = 0 # string-substrings are an exact search, so it must have an edit dist of 0
             else:
-                aln = [np.nan, np.nan]
+                idxes = [np.nan, np.nan]
+                editDistance = len(self.ConstructElement.seq) # it still has to be 0 so we can appropriately add them together.
         else:
             raise ValueError("CE_type must be either 'short' or 'long'.")
 
-        # set the boundary    
-        boundary.set_Boundary(aln[0], aln[1], self.ConstructElement.buffer)
+        # set the boundary
+        self.editDistance=editDistance  
+        boundary.set_Boundary(idxes[0], idxes[1], self.ConstructElement.buffer, editDistance)
 
     def check_ConstructElementAlignment_validity(self):
         '''
@@ -236,6 +243,7 @@ class ConstructElementAlignmentPair:
         self.CEA_long = CEA_long
         self.CEA_short = CEA_short
         self.orientation = [] # can be ['F','R','invalid']
+        self.editDistance = np.nansum([CEA_long.editDistance, CEA_short.editDistance])
         self.CEA_short_in_CEA_long = False # can be T or F
     
     def __str__(self):
@@ -355,10 +363,12 @@ class DemuxConstructAlignment:
 
         self.CEAP_index = ConstructElementAlignmentPair(CEA_long=CEA_index_full, CEA_short=CEA_index)
         self.CEAP_barcode = ConstructElementAlignmentPair(CEA_long=CEA_barcode_full, CEA_short=CEA_barcode)
+        self.editDistance = self.CEAP_index.editDistance + self.CEAP_barcode.editDistance
         self.CEAP_index.get_ConstructElementAlignmentPair_orientation()
         self.CEAP_barcode.get_ConstructElementAlignmentPair_orientation()
         self.CEAP_index.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
         self.CEAP_barcode.check_short_ConstructElementAlignment_in_long_ConstructElementAlignment()
+
 
     def __str__(self):
         str = f'''
@@ -559,10 +569,13 @@ def align_target(seq: Seq, subseq: Seq, aln_percent: float = 1.0):
     aln = edlib.align(query=subseq, target=seq, mode='HW', k=max_edit_dist, task='locations')
     #print(edlib.getNiceAlignment(aln, subseq, seq))
     if (aln.get('editDistance')==-1):
-        return([np.nan, np.nan])
+        idxes=[np.nan, np.nan]
+        editDistance=len(subseq)
     else:
         aln_boundaries=list(aln.get('locations')[0])
-        return([min(aln_boundaries), max(aln_boundaries)])
+        idxes=[min(aln_boundaries), max(aln_boundaries)]
+        editDistance=aln.get('editDistance')
+    return [idxes, editDistance] # renaming it to keep it consistent with the CE_short return boundary methods
 
 def main():
 
@@ -574,10 +587,6 @@ def main():
     barcode='ACACCT'
 
     #seq, DC, DCA=create_sample_data(seq_name, input_seq, index_full, index, barcode_full, barcode)
-
-    #print(DC)
-
-    #print(DCA)
 
 if __name__=="__main__":
     main()

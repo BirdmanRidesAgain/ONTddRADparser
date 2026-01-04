@@ -27,12 +27,12 @@ def print_logo():
     '''
     Prints an obnoxious ASCII-logo in rainbow lettering to stdout.
     '''
-    line1=colored(f'                                 _________               ____________   _________          ', (255, 0, 0), (102, 102, 153))
-    line2=colored(f'        _______________________________  /___________ _____  __ \__  | / /__  __/        ', (255, 153, 0), (102, 102, 153))
-    line3=colored(f'       ___  ___/__  __ \  _ \  _ \  __  /_  _ \_  __ `__ \  / / /_   |/ /__  /         ',(255, 255, 0), (102, 102, 153))
-    line4=colored(f'     ____(__  )__  /_/ /  __/  __/ /_/ / /  __/  / / / / / /_/ /_  /|  / _  /        ',(102, 255, 51), (102, 102, 153))
-    line5=colored(f'    ____/____/ _  .___/\___/\___/\__,_/  \___//_/ /_/ /_/\____/ /_/ |_/  /_/       ',(51, 204, 255), (102, 102, 153))
-    line6=colored(f'               /_/                                                               ',(51, 51, 255), (102, 102, 153))
+    line1=colored(f'                                 _________________               ________________________              ', (255, 0, 0), (102, 102, 153))
+    line2=colored(f'        _______________________________  /_____  /___________ _____// __ \__// | / //__  __/         ', (255, 153, 0), (102, 102, 153))
+    line3=colored(f'       ___  ___/__  __ \  _ \  _ \  __  /_  __  /_  _ \_  __ \__ \// / / /_//  |/ /__// /          ',(255, 255, 0), (102, 102, 153))
+    line4=colored(f'     ____(__  )__  /_/ /  __/  __/ /_/ / / /_/ / /  __/  / / / / // /_/ /_// /|  / _// /         ',(102, 255, 51), (102, 102, 153))
+    line5=colored(f'    ____/____/ _  ____/\___/\___/\__,_/  \__,_/  \___//_/ /_/ /_/\_____/ //_/ |_/  //_/        ',(51, 204, 255), (102, 102, 153))
+    line6=colored(f'               /_/                                                                           ',(51, 51, 255), (102, 102, 153))
 
     lines=[line1,line2,line3,line4,line5,line6]
     for i in lines:
@@ -189,9 +189,9 @@ def make_DCA(input_lst: list):
                 valid_DCA_lst.append(DCA)
 
     if (valid_DCA_lst):
-        highest_DCA=valid_DCA_lst[0]# this is psuedocode; actually find the highest scoring DCA
-        highest_DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
-        return(highest_DCA)
+        lowest_DCA = min(valid_DCA_lst, key=lambda dca: dca.editDistance) # find the DCA with the lowest edit distance
+        lowest_DCA.trim_ConstructElements_out_of_SimpleSeqRecord()
+        return(lowest_DCA)
     else:
         return(DCA) # you have to return the invalid ones to see why they failed
 
