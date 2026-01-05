@@ -50,13 +50,18 @@ def main():
 
     print_user_info('Making alignments:')
     DCA_lst=[]
-    chunk_size = 1000 # this is an arbitrary number
+    chunk_size = 10000 # this is an arbitrary number
     if len(SimpleSeqRecord_lst) > chunk_size:
         print_user_info(f'\tLarge input. Running a burnin of {int(chunk_size/10)} replicates to optimize alignment order', bold=False)
         SampleID_dict=optimize_SampleID_dict_order(SimpleSeqRecord_lst, int(chunk_size/10), SampleID_dict)
 
+    # if the user set args.max_comparisons, use their value
+    # otherwise, set to 1 if 'exact', and 'number of DCs' if fuzzy
     if (args.max_comparisons is None):
-        args.max_comparisons = sum(len(SampleID_dict[key][0]) for key in SampleID_dict)
+        if (args.fuzzy_aln_percent == float(1)):
+            args.max_comparisons = 1
+        else:
+            args.max_comparisons = sum(len(SampleID_dict[key][0]) for key in SampleID_dict)
 
     input_lst = list(product(SimpleSeqRecord_lst, [SampleID_dict], [args.max_comparisons]))
     DCA_lst_valid = []
