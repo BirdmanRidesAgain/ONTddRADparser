@@ -11,8 +11,8 @@ with st.sidebar:
     st.success("Done!")
 
 st.markdown("# :red[Sp]:orange[ee]:yellow[DD]:green[em]:blue[O]:violet[N]:gray[T] 🌈")
-st.subheader("A GUI frontend for [speeddemONT](https://github.com/BirdmanRidesAgain/speeddemONT)")
-SpeeDDemONT
+st.subheader("A GUI frontend for [speeddemONT](https://github.com/BirdmanRidesAgain/ONTddRADparser)")
+
 
 st.set_page_config(
     page_title="speeddemONT",
@@ -161,7 +161,7 @@ def run_ONTddRADparser():
     exact_aln_percent = st.session_state.get('exact_aln_percent', '')
     
     command = [
-        'python3', './ONTddRADparser.py',
+        'python3', './speeddemONT',
         '-f', fasta,
         '-d', demux,
         '-b', buffer,

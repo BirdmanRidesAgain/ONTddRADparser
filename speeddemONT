@@ -36,7 +36,7 @@ def main():
         raise ValueError(colored('Alignment arguments (-fa, -ea) must be percentages: eg, -fa .9', 'light_red'))
     
     # Once all our args are valid, print the speeddemONT logo in obnoxious rainbow font, and start running
-    print_logo()
+    #print_logo()
     # all 'info' print statements need to be bold
     print_args(args)
 

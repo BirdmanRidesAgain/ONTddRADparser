@@ -1,0 +1,7 @@
+# .dockerignore
+
+# ignore all shell scripts and fastq files
+**/*fq.gz
+**/*fq
+**/*ipynb
+**/*sh

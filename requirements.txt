@@ -78,6 +78,8 @@ smmap==5.0.2
 stack-data==0.6.3
 streamlit==1.50.0
 tenacity==9.1.2
+termcolor==3.1.0
+termcolors==0.1.0
 toml==0.10.2
 tomli==2.3.0
 tornado==6.5.2
