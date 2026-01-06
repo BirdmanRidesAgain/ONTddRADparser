@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from __future__ import annotations
-
 __all__ = ["Boundary", "SimpleSeqRecord", "ConstructElement", "ConstructElementAlignmentPair", "DemuxConstruct", "DemuxConstructAlignment", "DemuxxedSample", "FastqFile", "align_target"]
 
 import gzip
@@ -26,7 +24,7 @@ class Boundary:
         self.start_idx = start_idx
         self.end_idx = end_idx
         self.buffer = buffer
-        self.editDistance = editDistance # edit distance
+        self.editDistance = editDistance 
         self.span = [np.nan, np.nan]
         self.valid = valid
 
@@ -159,6 +157,15 @@ class ConstructElementAlignment:
         if self.RBoundary.valid: # aligned in R
             self.orientation.append('R')
 
+        # we don't check for editDistances with short CEs.
+        # this is because short CEs should match exactly within long CEs
+        # also because they can match multiple times. there's no reason to score them
+        if (self.ConstructElement.CE_type == 'long'):
+            if self.orientation == ['F']:
+                self.editDistance = self.FBoundary.editDistance
+            if self.orientation == ['R']:
+                self.editDistance = self.RBoundary.editDistance
+
     def set_ConstructElement_Boundary(self, orientation: str):
         '''
         Align in the specified direction ('F' for forward, 'R' for reverse).
@@ -189,7 +196,6 @@ class ConstructElementAlignment:
             raise ValueError("CE_type must be either 'short' or 'long'.")
 
         # set the boundary
-        self.editDistance=editDistance  
         boundary.set_Boundary(idxes[0], idxes[1], self.ConstructElement.buffer, editDistance)
 
     def check_ConstructElementAlignment_validity(self):
@@ -339,14 +345,13 @@ class DemuxConstructAlignment:
     '''
 
     def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', DemuxConstruct: 'DemuxConstruct'):
-        valid_dict = {
+        self.valid_dict = {
             'all_CEAs_valid': False,
             'no_long_CEA_concatamers_valid': False,
             'CEAs_in_CEAP_same_orientation': False,
             'CEAs_short_inside_CEAs_long': False,
             'CEAPs_opposite_orientation': False,
         }
-        self.valid_dict = valid_dict
 
         self.valid = False     # we initialize validity as false until proven otherwise
         self.SimpleSeqRecord = SimpleSeqRecord
@@ -567,7 +572,6 @@ def align_target(seq: Seq, subseq: Seq, aln_percent: float = 1.0):
     max_edit_dist = len(subseq) - len(subseq)*aln_percent
 
     aln = edlib.align(query=subseq, target=seq, mode='HW', k=max_edit_dist, task='locations')
-    #print(edlib.getNiceAlignment(aln, subseq, seq))
     if (aln.get('editDistance')==-1):
         idxes=[np.nan, np.nan]
         editDistance=len(subseq)
