@@ -88,7 +88,7 @@ def main():
         DS = DemuxxedSample(SampleID, SampleID_info[1])
         fq_lst.append(DS.init_FastqFile_from_Demuxxed_Sample(outdir=f'{args.prefix}/reads'))
 
-    pool = multi.Pool(processes = args.threads)
+    pool = multi.Pool(processes = args.threads/10) # FIXME - please improve the number of threads that can be run by writing without BioPython
     pool.map(write_fastq, fq_lst)
     pool.close()
     pool.join()    

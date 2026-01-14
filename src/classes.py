@@ -102,7 +102,7 @@ class SimpleSeqRecord():
 class ConstructElement:
     '''
     Individual elements of a larger DNA construct, implemented as a Seq object with metadata.
-    In the context of ONTddRADparse, they correspond to the index, barcode, index_full and barcode_full elements.
+    In the context of speeddemONT, they correspond to the index, barcode, index_full and barcode_full elements.
     We include the 'length' of construct, (long, short, etc.), the alignment specificity (`aln_percent`), and the raw sequence.
     '''
     def __init__(self, seq: Seq, CE_type: str, aln_percent: float, buffer: int=0):
