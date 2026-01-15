@@ -17,7 +17,7 @@ import os
 class Boundary:
     '''
     Simple class representing the zero-indexed start/end boundaries of two sequences.
-    Alignments are made with BioPython's Align module.
+    Alignments are made with edlib's align module.
     '''
     def __init__(self, seq_len: int, start_idx=np.nan, end_idx=np.nan, buffer: int = 0, editDistance:int = np.nan, valid: bool = False):
         self.seq_len = seq_len
@@ -346,6 +346,10 @@ class DemuxConstructAlignment:
 
     def __init__(self, SimpleSeqRecord: 'SimpleSeqRecord', DemuxConstruct: 'DemuxConstruct'):
         self.valid_dict = {
+            'index_full_valid': False,
+            'index_valid': False,
+            'barcode_full_valid': False,
+            'barcode_valid': False,
             'all_CEAs_valid': False,
             'no_long_CEA_concatamers_valid': False,
             'CEAs_in_CEAP_same_orientation': False,
@@ -364,7 +368,9 @@ class DemuxConstructAlignment:
         CEA_barcode_full=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode_full)
         CEA_barcode=ConstructElementAlignment(SimpleSeqRecord, DemuxConstruct.barcode)
 
-        self.align_all_ConstructElements([CEA_index_full, CEA_index, CEA_barcode_full, CEA_barcode])
+        CEA_lst=[CEA_index_full, CEA_index, CEA_barcode_full, CEA_barcode]
+        validation_lst=['index_full_valid','index_valid','barcode_full_valid','barcode_valid']
+        self.align_all_ConstructElements(CEA_lst, validation_lst)
 
         self.CEAP_index = ConstructElementAlignmentPair(CEA_long=CEA_index_full, CEA_short=CEA_index)
         self.CEAP_barcode = ConstructElementAlignmentPair(CEA_long=CEA_barcode_full, CEA_short=CEA_barcode)
@@ -383,13 +389,16 @@ class DemuxConstructAlignment:
         '''
         return(str)
 
-    def align_all_ConstructElements(self, CEA_lst):
-        for CEA in CEA_lst:
+    def align_all_ConstructElements(self, CEA_lst, validation_lst):
+        for CEA, filter in zip(CEA_lst, validation_lst):
             CEA.align_ConstructElement()
             CEA.check_ConstructElementAlignment_validity()
             if not CEA.valid:
+                self.valid_dict[filter] = False
                 self.valid_dict['all_CEAs_valid'] = False
                 return False
+            else:
+                self.valid_dict[filter] = True
         self.valid_dict['all_CEAs_valid'] = True
         return True
 

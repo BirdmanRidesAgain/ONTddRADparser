@@ -98,7 +98,6 @@ def main():
     #pool.close()
     #pool.join()    
 
-
     # Plot results and print percent
     print_user_info(f'\nWriting summary statistics:')
     plot1, df1 = plot_number_of_SimpleSeqRecords_per_SampleID(SampleID_dict)

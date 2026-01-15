@@ -259,6 +259,10 @@ def plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict: dict):
     # Initialize counters for each filter step
     num_reads=len(invalid_dict)
     filter_counts = {
+        'index_full_valid': 0,
+        'index_valid': 0,
+        'barcode_full_valid': 0,
+        'barcode_valid': 0,
         'all_CEAs_valid': 0,
         'no_long_CEA_concatamers_valid': 0,
         'CEAs_in_CEAP_same_orientation': 0,
@@ -274,7 +278,7 @@ def plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict: dict):
     
     # Convert to DataFrame for plotting
     data = []
-    data.append({'filter_step': 'total num failed reads', 'count': num_reads})
+    #data.append({'filter_step': 'total num failed reads', 'count': num_reads})
     for filter_step, count in filter_counts.items():
         data.append({
             'filter_step': filter_step,
