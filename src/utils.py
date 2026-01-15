@@ -278,7 +278,7 @@ def plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict: dict):
     
     # Convert to DataFrame for plotting
     data = []
-    #data.append({'filter_step': 'total num failed reads', 'count': num_reads})
+    data.append({'filter_step': 'total num failed reads', 'count': num_reads})
     for filter_step, count in filter_counts.items():
         data.append({
             'filter_step': filter_step,
