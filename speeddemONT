@@ -9,6 +9,7 @@ from itertools import product
 import edlib
 from termcolor import colored
 from sys import stderr
+import tracemalloc
 from src.utils import *
 from src.classes import *
 
@@ -88,10 +89,14 @@ def main():
         DS = DemuxxedSample(SampleID, SampleID_info[1])
         fq_lst.append(DS.init_FastqFile_from_Demuxxed_Sample(outdir=f'{args.prefix}/reads'))
 
-    pool = multi.Pool(processes = args.threads/10) # FIXME - please improve the number of threads that can be run by writing without BioPython
-    pool.map(write_fastq, fq_lst)
-    pool.close()
-    pool.join()    
+
+    for fq in fq_lst:
+        fq.write_FastqFile_to_outdir()
+        #del fq
+    #pool = multi.Pool(processes = args.threads/10) # FIXME - please improve the number of threads that can be run by writing without BioPython
+    #pool.map(write_fastq, fq_lst)
+    #pool.close()
+    #pool.join()    
 
 
     # Plot results and print percent
@@ -102,10 +107,9 @@ def main():
     print_demultiplexing_summary(df1)
 
 
-
-    #plot2, df2 = plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict)
-    #plot2.savefig(f'{args.prefix}/{args.prefix}_demult_failure.png', dpi=300)
-    #df2.to_csv(f'{args.prefix}/{args.prefix}_failed_seqs_stats.tsv', sep = "\t", index=False)
+    plot2, df2 = plot_reasons_for_SimpleSeqRecord_invalidity(invalid_dict)
+    plot2.savefig(f'{args.prefix}/{args.prefix}_demult_failure.png', dpi=300)
+    df2.to_csv(f'{args.prefix}/{args.prefix}_failed_seqs_stats.tsv', sep = "\t", index=False)
 
 # If this is being imported
 if __name__=="__main__":

@@ -212,6 +212,7 @@ def split_DCA_lst(SampleID_dict: dict, DCA_lst: list):
             # this records all the info we have for the failed seqs.
             SampleID_dict['NA'][1].append(DCA.SimpleSeqRecord)
             invalid_dict[DCA.SimpleSeqRecord.id] = DCA.valid_dict # this is a separate dict b/c it corresponds to plot 2, which has a different schema
+    del DCA
 
     return [SampleID_dict, invalid_dict]
 
